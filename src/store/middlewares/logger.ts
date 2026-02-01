@@ -41,6 +41,20 @@ function getConsoleMethod(level: ConsoleMethod): Console["log" | "warn" | "error
   return console[level] as Console["log" | "warn" | "error" | "info"];
 }
 
+/**
+ * Creates a middleware that logs actions and state changes to the console.
+ * @param options - Logger configuration options.
+ * @returns A middleware function.
+ * @remarks Supports collapsed groups, timestamps, duration tracking, and custom transformers.
+ * @example
+ * ```ts
+ * const logger = createLoggerMiddleware({
+ *   collapsed: true,
+ *   duration: true,
+ *   predicate: (action) => action.type.includes("User")
+ * });
+ * ```
+ */
 export function createLoggerMiddleware(options: LoggerOptions = {}) {
   const {
     collapsed = false,
