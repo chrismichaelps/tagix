@@ -25,24 +25,62 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { TaggedError } from "../lib/Data/tagged-error";
 import { ERROR_NAMES } from "./error-names";
 
+/**
+ * Thrown when a state transition produces an unexpected state tag in strict mode.
+ * @remarks Only thrown when `strict: true` is set in store configuration.
+ */
 export const StateTransitionError = TaggedError(ERROR_NAMES.STATE_TRANSITION);
 
+/**
+ * Thrown when an action handler is not registered for a dispatched action.
+ */
 export const MissingHandlerError = TaggedError(ERROR_NAMES.MISSING_HANDLER);
 
+/**
+ * Thrown when attempting to restore a snapshot that does not exist.
+ * @remarks The error payload includes available snapshot names.
+ */
 export const SnapshotNotFoundError = TaggedError(ERROR_NAMES.SNAPSHOT_NOT_FOUND);
 
+/**
+ * Thrown when dispatching an action type that has not been registered.
+ */
 export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
 
+/**
+ * Thrown when payload validation fails.
+ * @remarks Use `validatePayload` guard to trigger this error.
+ */
 export const InvalidPayloadError = TaggedError(ERROR_NAMES.INVALID_PAYLOAD);
 
+/**
+ * Thrown when undo/redo history exceeds the configured maximum.
+ * @remarks Configured via `maxUndoHistory` in store config.
+ */
 export const MaxHistoryExceededError = TaggedError(ERROR_NAMES.MAX_HISTORY_EXCEEDED);
 
+/**
+ * Thrown when pattern matching is non-exhaustive.
+ * @remarks Use `exhaust` function to ensure all state tags are handled.
+ */
 export const NonExhaustiveMatchError = TaggedError(ERROR_NAMES.NON_EXHAUSTIVE_MATCH);
 
+/**
+ * Thrown when a required payload is missing or null/undefined.
+ * @remarks Use `fromPayload` guard to trigger this error.
+ */
 export const RequiredPayloadError = TaggedError(ERROR_NAMES.REQUIRED_PAYLOAD);
 
+/**
+ * Thrown when a payload validation predicate returns false.
+ * @remarks Use `validatePayload` guard to trigger this error.
+ */
 export const PayloadValidationError = TaggedError(ERROR_NAMES.PAYLOAD_VALIDATION);
 
+/**
+ * Thrown when state is in an unexpected condition.
+ * @remarks Use `ensureState` guard to trigger this error when state tag doesn't match.
+ */
 export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
 
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
@@ -56,6 +94,10 @@ export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
 export type PayloadValidationError = InstanceType<typeof PayloadValidationError>;
 export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
 
+/**
+ * Union type of all Tagix error instances.
+ * @remarks Use this for comprehensive error handling across the library.
+ */
 export type TagixError =
   | StateTransitionError
   | MissingHandlerError

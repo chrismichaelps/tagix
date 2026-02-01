@@ -22,6 +22,10 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
+/**
+ * Error name constants for Tagix error types.
+ * @remarks Used internally for error identification and categorization.
+ */
 export const ERROR_NAMES = {
   STATE_TRANSITION: "StateTransitionError",
   MISSING_HANDLER: "MissingHandlerError",
@@ -35,8 +39,15 @@ export const ERROR_NAMES = {
   UNEXPECTED_STATE: "UnexpectedStateError",
 } as const;
 
+/**
+ * Union type of all error names.
+ */
 export type ErrorName = (typeof ERROR_NAMES)[keyof typeof ERROR_NAMES];
 
+/**
+ * Numeric error codes for each error type.
+ * @remarks Used for error categorization and analytics.
+ */
 export const ERROR_CODES = {
   STATE_TRANSITION: 1001,
   MISSING_HANDLER: 1002,
@@ -49,19 +60,36 @@ export const ERROR_CODES = {
   PAYLOAD_VALIDATION: 1009,
   UNEXPECTED_STATE: 1010,
 } as const;
+/**
+ * Union type of all error codes.
+ */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
+/**
+ * Maps an error name to its corresponding error code.
+ * @param name - The error name to look up.
+ * @returns The numeric error code.
+ */
 export const getErrorCode = (name: ErrorName): ErrorCode => {
   const codes = ERROR_CODES as unknown as Record<ErrorName, ErrorCode>;
   return codes[name];
 };
 
+/**
+ * Structured error object with tag, code, and message.
+ * @remarks All Tagix errors conform to this shape for consistent error handling.
+ */
 export interface TagixErrorObject {
   readonly _tag: string;
   readonly code: number;
   readonly message: string;
 }
 
+/**
+ * Type guard to check if an error is a Tagix error.
+ * @param error - The value to check.
+ * @returns True if the error has the Tagix error structure.
+ */
 export const isTagixError = (error: unknown): error is TagixErrorObject => {
   if (error === null || typeof error !== "object") return false;
 
@@ -73,6 +101,11 @@ export const isTagixError = (error: unknown): error is TagixErrorObject => {
   return hasTag && hasCode;
 };
 
+/**
+ * Extracts structured error information from an unknown error.
+ * @param error - The error to extract information from.
+ * @returns TagixErrorObject if the error is a Tagix error, null otherwise.
+ */
 export const getErrorInfo = (error: unknown): TagixErrorObject | null => {
   if (!isTagixError(error)) return null;
 
@@ -84,6 +117,10 @@ export const getErrorInfo = (error: unknown): TagixErrorObject | null => {
   };
 };
 
+/**
+ * Error categories grouping related error codes.
+ * @remarks Used for error analytics and recovery strategies.
+ */
 export const ERROR_CATEGORIES = {
   STATE: [ERROR_CODES.STATE_TRANSITION, ERROR_CODES.UNEXPECTED_STATE] as const,
   ACTION: [ERROR_CODES.ACTION_NOT_FOUND, ERROR_CODES.MISSING_HANDLER] as const,
@@ -97,6 +134,9 @@ export const ERROR_CATEGORIES = {
   MATCH: [ERROR_CODES.NON_EXHAUSTIVE_MATCH] as const,
 } as const;
 
+/**
+ * Union type of all error category names.
+ */
 export type ErrorCategory = keyof typeof ERROR_CATEGORIES;
 
 const codeToCategoryMap: Map<number, ErrorCategory> = new Map([
@@ -115,15 +155,32 @@ const recoverableCategoriesSet: ReadonlySet<ErrorCategory> = new Set([
   "SNAPSHOT",
 ]);
 
+/**
+ * Gets the category for a given error code.
+ * @param code - The error code to look up.
+ * @returns The error category, or undefined if not found.
+ */
 export const getErrorCategory = (code: number): ErrorCategory | undefined => {
   return codeToCategoryMap.get(code);
 };
 
+/**
+ * Checks if an error code represents a recoverable error.
+ * @param code - The error code to check.
+ * @returns True if the error is recoverable (STATE, ACTION, PAYLOAD, or SNAPSHOT category).
+ */
 export const isRecoverableError = (code: number): boolean => {
   const category = codeToCategoryMap.get(code);
   return category !== undefined && recoverableCategoriesSet.has(category);
 };
 
+/**
+ * Creates an error payload with the corresponding error code.
+ * @typeParam T - The payload object type.
+ * @param name - The error name.
+ * @param payload - The error payload data.
+ * @returns The payload with the error code added.
+ */
 export const createErrorPayload = <T extends object>(
   name: ErrorName,
   payload: T
