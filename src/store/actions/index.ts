@@ -43,6 +43,17 @@ interface AsyncActionBuilder<TPayload, TState, TEffect> {
   ): AsyncAction<TPayload, TState, TEffect>;
 }
 
+/**
+ * Creates a synchronous action builder.
+ * @param type - Unique action identifier.
+ * @returns Action builder with chainable methods.
+ * @example
+ * ```ts
+ * const increment = createAction("Increment")
+ *   .withPayload({ amount: 1 })
+ *   .withState((s, p) => ({ count: s.count + p.amount }));
+ * ```
+ */
 export function createAction<TPayload, S extends { readonly _tag: string }>(
   type: string
 ): ActionBuilder<TPayload, S>;
@@ -68,6 +79,23 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
   };
 }
 
+/**
+ * Creates an asynchronous action builder with side effects.
+ * @typeParam TPayload - The payload type.
+ * @typeParam S - The state type.
+ * @typeParam TEffect - The effect result type.
+ * @param type - Unique action identifier.
+ * @returns Async action builder with chainable methods.
+ * @remarks Builder pattern: call `state`, `effect`, `onSuccess`, then `onError` to complete.
+ * @example
+ * ```ts
+ * const fetchUser = createAsyncAction<{ id: string }, UserState, User>("FetchUser")
+ *   .state(s => ({ ...s, loading: true }))
+ *   .effect(p => api.getUser(p.id))
+ *   .onSuccess((s, user) => ({ ...s, user, loading: false }))
+ *   .onError((s, err) => ({ ...s, error: err, loading: false }));
+ * ```
+ */
 export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect>(
   type: string
 ): AsyncActionBuilder<TPayload, S, TEffect>;
