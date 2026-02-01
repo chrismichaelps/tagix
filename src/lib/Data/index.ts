@@ -2,6 +2,7 @@ export {
   type TaggedEnum,
   type TaggedEnumConstructor,
   type MatchCases,
+  type GetState,
   taggedEnum,
 } from "./tagged-enum";
 

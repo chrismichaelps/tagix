@@ -21,7 +21,10 @@ export type TaggedEnumConstructor<A extends { readonly _tag: string }> = {
     <R>(cases: MatchCases<A, R>): (value: A) => R;
     <R>(value: A, cases: MatchCases<A, R>): R;
   };
+  readonly State: A;
 };
+
+export type GetState<T> = T extends TaggedEnumConstructor<infer A> ? A : never;
 
 function createTagConstructor<A extends { readonly _tag: string }>(
   tag: string
@@ -41,10 +44,10 @@ function createIsRefinement<A extends { readonly _tag: string }>(
 
 export function taggedEnum<A extends Record<string, Record<string, unknown>>>(
   definition: A
-): TaggedEnumConstructor<TaggedEnum<A>> {
+): TaggedEnumConstructor<TaggedEnum<A>> & { State: TaggedEnum<A> } {
   const cache = new Map<string | symbol, unknown>();
 
-  return new Proxy({} as TaggedEnumConstructor<TaggedEnum<A>>, {
+  return new Proxy({} as TaggedEnumConstructor<TaggedEnum<A>> & { State: TaggedEnum<A> }, {
     get(_target, prop) {
       if (cache.has(prop)) {
         return cache.get(prop);
@@ -77,6 +80,11 @@ export function taggedEnum<A extends Record<string, Record<string, unknown>>>(
         };
         cache.set(prop, fn);
         return fn;
+      }
+
+      if (prop === "State") {
+        cache.set(prop, undefined);
+        return undefined;
       }
 
       if (typeof prop === "string") {
