@@ -24,8 +24,20 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 
 import { some, none, type Option } from "../../lib/Data/option";
 
-export function patch<T extends object>(base: T): (updates: Partial<T>) => T {
-  return (updates) => ({ ...base, ...updates });
+interface Patchable<T> extends Function {
+  (updates: Partial<T>): Patchable<T>;
+  value: T;
+}
+
+export function patch<T extends object>(base: T): Patchable<T> {
+  const fn: Patchable<T> = Object.assign(
+    (updates: Partial<T>): Patchable<T> => {
+      const newBase = { ...fn.value, ...updates } as T;
+      return patch(newBase);
+    },
+    { value: base }
+  );
+  return fn;
 }
 
 export function getState<S extends { readonly _tag: string }, K extends S["_tag"]>(
@@ -40,8 +52,19 @@ export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K
   return key in obj ? obj[key] : undefined;
 }
 
-export function pluck<T extends object, K extends keyof T>(key: K): (obj: T) => T[K] | undefined {
-  return (obj) => select(obj, key);
+export function pluck<T extends object, K extends string>(key: K): (obj: T) => unknown {
+  return (obj: T): unknown => {
+    if (key.includes(".")) {
+      const keys = key.split(".");
+      let result: unknown = obj;
+      for (const k of keys) {
+        if (result === null || result === undefined) return undefined;
+        result = (result as Record<string, unknown>)[k];
+      }
+      return result;
+    }
+    return (obj as Record<string, unknown>)[key];
+  };
 }
 
 export function combineSelectors<T extends object, R1, R2>(
