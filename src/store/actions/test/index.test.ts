@@ -219,7 +219,7 @@ describe("createAsyncAction", () => {
 
     try {
       await store.dispatch("tagix/action/FailingAPI", {});
-    } catch { }
+    } catch {}
 
     expect(store.stateValue._tag).toBe("Error");
     expect((store.stateValue as { code: number }).code).toBe(500);
