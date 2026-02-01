@@ -17,6 +17,8 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
+type CounterStateType = typeof CounterState.State;
+
 describe("when()", () => {
   it("should return true for matching state tag", () => {
     const store = createStore(CounterState.Ready({ value: 10 }), CounterState, {
@@ -37,7 +39,8 @@ describe("when()", () => {
     const state = store.stateValue;
 
     if (when("Ready")(state)) {
-      expect(state.value).toBe(42);
+      const readyState = state as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(readyState.value).toBe(42);
     }
   });
 });
@@ -49,14 +52,9 @@ describe("on()", () => {
     });
     const state = store.stateValue;
 
-    const handlers = {
-      Idle: (s: typeof state) => s.value * 2,
-      Ready: (s: typeof state) => s.value * 3,
-      Loading: () => 0,
-      Error: () => -1,
-    };
-
-    const result = on("Ready")(handlers.Ready)(state);
+    const result = on("Ready")(
+      (s) => (s as Extract<CounterStateType, { _tag: "Ready" }>).value * 3
+    )(state);
     expect(result).toBe(30);
   });
 
@@ -66,7 +64,9 @@ describe("on()", () => {
     });
     const state = store.stateValue;
 
-    const result = on("Idle")((s: typeof state) => s.value)(state);
+    const result = on("Idle")((s) => (s as Extract<CounterStateType, { _tag: "Idle" }>).value)(
+      state
+    );
     expect(result).toBeUndefined();
   });
 });
@@ -77,7 +77,11 @@ describe("withState()", () => {
       name: "Counter",
     });
 
-    const result = withState(store.stateValue, "Ready", (s) => s.value * 2);
+    const result = withState(
+      store.stateValue,
+      "Ready",
+      (s) => (s as Extract<CounterStateType, { _tag: "Ready" }>).value * 2
+    );
     expect(result).toBe(50);
   });
 
@@ -86,7 +90,11 @@ describe("withState()", () => {
       name: "Counter",
     });
 
-    const result = withState(store.stateValue, "Ready", (s) => s.value);
+    const result = withState(
+      store.stateValue,
+      "Ready",
+      (s) => (s as Extract<CounterStateType, { _tag: "Ready" }>).value
+    );
     expect(result).toBeUndefined();
   });
 });
@@ -136,16 +144,24 @@ describe("Complete Guard Example", () => {
       Error: { message: "" },
     });
 
+    type AppStateType = typeof AppState.State;
+
     const store = createStore(AppState.Loading({ progress: 50 }), AppState, {
       name: "App",
     });
 
     if (when("Loading")(store.stateValue)) {
-      const progress = withState(store.stateValue, "Loading", (s) => s.progress);
+      const progress = withState(
+        store.stateValue,
+        "Loading",
+        (s) => (s as Extract<AppStateType, { _tag: "Loading" }>).progress
+      );
       expect(progress).toBe(50);
     }
 
-    const progressHandler = on("Loading")((s) => s.progress * 2);
+    const progressHandler = on("Loading")(
+      (s) => (s as Extract<AppStateType, { _tag: "Loading" }>).progress * 2
+    );
     const doubled = progressHandler(store.stateValue);
     expect(doubled).toBe(100);
 

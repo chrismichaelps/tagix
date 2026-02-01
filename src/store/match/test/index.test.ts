@@ -8,6 +8,8 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
+type CounterStateType = typeof CounterState.State;
+
 describe("matchState()", () => {
   it("should return value for matching case", () => {
     const store = createStore(CounterState.Ready({ value: 10 }), CounterState, {
@@ -43,9 +45,9 @@ describe("matchState()", () => {
     });
 
     const result = matchState(store.stateValue, {
-      Idle: (s) => `Idle: ${s.value}`,
-      Ready: (s) => `Ready: ${s.value}`,
-      Error: (s) => `Error: ${s.message}`,
+      Idle: (s) => `Idle: ${(s as Extract<CounterStateType, { _tag: "Idle" }>).value}`,
+      Ready: (s) => `Ready: ${(s as Extract<CounterStateType, { _tag: "Ready" }>).value}`,
+      Error: (s) => `Error: ${(s as Extract<CounterStateType, { _tag: "Error" }>).message}`,
     });
 
     expect(result).toBe("Ready: 42");
@@ -59,10 +61,10 @@ describe("exhaust()", () => {
     });
 
     const result = exhaust(store.stateValue, {
-      Idle: (s) => `Idle: ${s.value}`,
+      Idle: (s) => `Idle: ${(s as Extract<CounterStateType, { _tag: "Idle" }>).value}`,
       Loading: () => "Loading",
-      Ready: (s) => `Ready: ${s.value}`,
-      Error: (s) => `Error: ${s.message}`,
+      Ready: (s) => `Ready: ${(s as Extract<CounterStateType, { _tag: "Ready" }>).value}`,
+      Error: (s) => `Error: ${(s as Extract<CounterStateType, { _tag: "Error" }>).message}`,
     });
 
     expect(result).toBe("Ready: 10");
@@ -82,11 +84,15 @@ describe("exhaust()", () => {
       name: "Counter",
     });
 
+    type IdleType = Extract<CounterStateType, { _tag: "Idle" }>;
+    type ReadyType = Extract<CounterStateType, { _tag: "Ready" }>;
+    type ErrorType = Extract<CounterStateType, { _tag: "Error" }>;
+
     const mapper = {
-      Idle: (s: typeof idleStore.stateValue) => `Idle:${s.value}`,
+      Idle: (s: IdleType) => `Idle:${s.value}`,
       Loading: () => "Loading",
-      Ready: (s: typeof readyStore.stateValue) => `Ready:${s.value}`,
-      Error: (s: typeof errorStore.stateValue) => `Error:${s.message}`,
+      Ready: (s: ReadyType) => `Ready:${s.value}`,
+      Error: (s: ErrorType) => `Error:${s.message}`,
     };
 
     expect(exhaust(idleStore.stateValue, mapper)).toBe("Idle:0");
@@ -106,8 +112,14 @@ describe("Dynamic Patterns", () => {
       return matchState(store.stateValue, {
         Idle: () => "Ready",
         Loading: () => (showDetails ? "Loading..." : "Working"),
-        Ready: (s) => (showDetails ? `Done: ${s.value}` : "Done"),
-        Error: (s) => (showDetails ? `Error: ${s.message}` : "Failed"),
+        Ready: (s) =>
+          showDetails
+            ? `Done: ${(s as Extract<CounterStateType, { _tag: "Ready" }>).value}`
+            : "Done",
+        Error: (s) =>
+          showDetails
+            ? `Error: ${(s as Extract<CounterStateType, { _tag: "Error" }>).message}`
+            : "Failed",
       });
     };
 
@@ -125,13 +137,15 @@ describe("Complete Match Example", () => {
       Failed: { error: "" },
     });
 
+    type TaskStateType = typeof TaskState.State;
+
     const store = createStore(TaskState.Running({ progress: 75 }), TaskState, {
       name: "Task",
     });
 
     const status = matchState(store.stateValue, {
       Pending: () => "Waiting to start",
-      Running: (s) => `Progress: ${s.progress}%`,
+      Running: (s) => `Progress: ${(s as Extract<TaskStateType, { _tag: "Running" }>).progress}%`,
       Completed: () => "Done!",
     });
 
@@ -139,14 +153,14 @@ describe("Complete Match Example", () => {
 
     const statusMessage = exhaust(store.stateValue, {
       Pending: () => "In progress",
-      Running: (s) => `${s.progress}% complete`,
+      Running: (s) => `${(s as Extract<TaskStateType, { _tag: "Running" }>).progress}% complete`,
       Completed: () => "Finished",
-      Failed: (s) => `Failed: ${s.error}`,
+      Failed: (s) => `Failed: ${(s as Extract<TaskStateType, { _tag: "Failed" }>).error}`,
     });
 
     expect(statusMessage).toBe("75% complete");
 
-    const renderTask = (state: typeof store.stateValue) => {
+    const renderTask = (state: TaskStateType) => {
       return (
         matchState(state, {
           Pending: (s) => `<div>Retries: ${s.retries}</div>`,
@@ -157,6 +171,6 @@ describe("Complete Match Example", () => {
       );
     };
 
-    expect(renderTask(store.stateValue)).toBe("<div>Progress: 75%</div>");
+    expect(renderTask(store.stateValue as TaskStateType)).toBe("<div>Progress: 75%</div>");
   });
 });

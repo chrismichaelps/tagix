@@ -14,6 +14,8 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
+type CounterStateType = typeof CounterState.State;
+
 describe("createLoggerMiddleware", () => {
   it("should create middleware object", () => {
     const middleware = createLoggerMiddleware();
@@ -50,15 +52,15 @@ describe("createLoggerMiddleware", () => {
       middlewares: logger ? [logger] : [],
     });
 
-    const increment = createAction("Increment")
-      .withPayload({ amount: 1 } as { amount: number })
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
       .withState((s, p) => ({ ...s, value: s.value + p.amount }));
 
     store.register("Increment", increment);
     store.dispatch("tagix/action/Increment", { amount: 5 });
 
     expect(store.stateValue._tag).toBe("Idle");
-    expect((store.stateValue as { value: number }).value).toBe(1);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(1);
   });
 
   it("should support custom predicate", () => {
@@ -78,7 +80,7 @@ describe("createLoggerMiddleware", () => {
     const logger = createLoggerMiddleware?.({
       stateTransformer: (state) => ({
         transformed: true,
-        value: (state as { value: number }).value,
+        value: (state as Extract<CounterStateType, { value: number }>).value,
       }),
     });
 
@@ -87,12 +89,12 @@ describe("createLoggerMiddleware", () => {
       middlewares: logger ? [logger] : [],
     });
 
-    expect((store.stateValue as { value: number }).value).toBe(10);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(10);
   });
 
   it("should support actionTransformer option", () => {
     const logger = createLoggerMiddleware?.({
-      actionTransformer: (action) => ({ ...action, transformed: true }),
+      actionTransformer: (action) => Object.assign({}, action, { transformed: true }),
     });
 
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
@@ -107,23 +109,29 @@ describe("createLoggerMiddleware", () => {
     const AppState = taggedEnum({
       Idle: {},
       Loading: {},
-      Success: { data: null },
+      Success: { data: null as string | null },
       Error: { message: "" },
     });
+
+    type AppStateType = typeof AppState.State;
 
     const store = createStore(AppState.Idle(), AppState, {
       name: "AppAsync",
       middlewares: [createLoggerMiddleware({ collapsed: true, duration: true })],
     });
 
-    const fetchData = createAsyncAction("FetchData")
-      .state((s) => ({ ...s, _tag: "Loading" }))
+    const fetchData = createAsyncAction<undefined, AppStateType, string>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" as const }))
       .effect(async () => "test-data")
-      .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
-      .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+      .onSuccess((s, data) => ({ ...s, _tag: "Success" as const, data }))
+      .onError((s, error) => ({
+        ...s,
+        _tag: "Error" as const,
+        message: error instanceof Error ? error.message : "Unknown error",
+      }));
 
     store.register("FetchData", fetchData);
-    await store.dispatch("tagix/action/FetchData", {});
+    await store.dispatch("tagix/action/FetchData", undefined);
 
     expect(store.stateValue._tag).toBe("Success");
   });

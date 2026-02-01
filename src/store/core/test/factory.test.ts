@@ -8,6 +8,8 @@ const CounterState = taggedEnum({
   Error: { message: "", code: 0 },
 });
 
+type CounterStateType = typeof CounterState.State;
+
 describe("Store Basic", () => {
   it("should create store with initial state", () => {
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
@@ -52,8 +54,8 @@ describe("Store Edge Cases", () => {
       name: "RapidTest",
     });
 
-    const increment = createAction("Increment")
-      .withPayload({ amount: 1 } as { amount: number })
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
       .withState((s, p) => ({ ...s, value: s.value + p.amount }));
 
     store.register("Increment", increment);
@@ -73,8 +75,8 @@ describe("Store Edge Cases", () => {
       name: "UndoTest",
     });
 
-    const add = createAction("Add")
-      .withPayload({ n: 5 } as { n: number })
+    const add = createAction<{ n: number }, CounterStateType>("Add")
+      .withPayload({ n: 5 })
       .withState((s, p) => ({ ...s, value: s.value + p.n }));
 
     store.register("Add", add);
@@ -82,23 +84,23 @@ describe("Store Edge Cases", () => {
     expect(store.canUndo()).toBe(false);
 
     store.dispatch("tagix/action/Add", { n: 5 });
-    expect((store.stateValue as { value: number }).value).toBe(5);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(5);
 
     store.dispatch("tagix/action/Add", { n: 5 });
-    expect((store.stateValue as { value: number }).value).toBe(10);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(10);
 
     expect(store.canUndo()).toBe(true);
 
     store.undo();
-    expect((store.stateValue as { value: number }).value).toBe(5);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(5);
 
     store.undo();
-    expect((store.stateValue as { value: number }).value).toBe(0);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(0);
 
     expect(store.canUndo()).toBe(false);
 
     store.redo();
-    expect((store.stateValue as { value: number }).value).toBe(5);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(5);
   });
 
   it("should limit history size", () => {
@@ -107,8 +109,8 @@ describe("Store Edge Cases", () => {
       maxUndoHistory: 5,
     });
 
-    const add = createAction("Add")
-      .withPayload({ n: 1 } as { n: number })
+    const add = createAction<{ n: number }, CounterStateType>("Add")
+      .withPayload({ n: 1 })
       .withState((s, p) => ({ ...s, value: s.value + p.n }));
 
     store.register("Add", add);
@@ -117,7 +119,7 @@ describe("Store Edge Cases", () => {
       store.dispatch("tagix/action/Add", { n: 1 });
     }
 
-    expect((store.stateValue as { value: number }).value).toBe(10);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(10);
     expect(store.currentHistory.length).toBeLessThanOrEqual(6);
   });
 
@@ -132,8 +134,8 @@ describe("Store Edge Cases", () => {
     const unsub1 = store.subscribe(() => callCount1++);
     const unsub2 = store.subscribe(() => callCount2++);
 
-    const increment = createAction("Increment")
-      .withPayload({ amount: 1 } as { amount: number })
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
       .withState((s, p) => ({ ...s, value: s.value + p.amount }));
 
     store.register("Increment", increment);
@@ -154,8 +156,8 @@ describe("Store Edge Cases", () => {
       name: "Snapshot",
     });
 
-    const add = createAction("Add")
-      .withPayload({ n: 10 } as { n: number })
+    const add = createAction<{ n: number }, CounterStateType>("Add")
+      .withPayload({ n: 10 })
       .withState((s, p) => ({ ...s, value: s.value + p.n }));
 
     store.register("Add", add);
@@ -163,8 +165,8 @@ describe("Store Edge Cases", () => {
 
     store.snapshot("before-error");
 
-    const failAction = createAction("Fail")
-      .withPayload({})
+    const failAction = createAction<undefined, CounterStateType>("Fail")
+      .withPayload(undefined)
       .withState(() => ({
         _tag: "Error" as const,
         message: "Failed",
@@ -172,13 +174,13 @@ describe("Store Edge Cases", () => {
       }));
 
     store.register("Fail", failAction);
-    store.dispatch("tagix/action/Fail", {});
+    store.dispatch("tagix/action/Fail", undefined);
 
     expect(store.stateValue._tag).toBe("Error");
 
     store.restore("before-error");
     expect(store.stateValue._tag).toBe("Idle");
-    expect((store.stateValue as { value: number }).value).toBe(10);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(10);
   });
 
   it("should throw error for non-existent snapshot", () => {
@@ -196,8 +198,8 @@ describe("Store Edge Cases", () => {
       name: "ErrorHistory",
     });
 
-    const failAction = createAction("Fail")
-      .withPayload({})
+    const failAction = createAction<undefined, CounterStateType>("Fail")
+      .withPayload(undefined)
       .withState(() => {
         throw new Error("Test error");
       });
@@ -205,7 +207,7 @@ describe("Store Edge Cases", () => {
     store.register("Fail", failAction);
 
     try {
-      store.dispatch("tagix/action/Fail", {});
+      store.dispatch("tagix/action/Fail", undefined);
     } catch {}
 
     expect(store.errorHistory.length).toBeGreaterThan(0);
@@ -217,8 +219,8 @@ describe("Store Edge Cases", () => {
       name: "ErrorCodes",
     });
 
-    const errorAction = createAction("ErrorAction")
-      .withPayload({})
+    const errorAction = createAction<undefined, CounterStateType>("ErrorAction")
+      .withPayload(undefined)
       .withState(() => {
         throw new Error("Test error");
       });
@@ -226,7 +228,7 @@ describe("Store Edge Cases", () => {
     store.register("ErrorAction", errorAction);
 
     try {
-      store.dispatch("tagix/action/ErrorAction", {});
+      store.dispatch("tagix/action/ErrorAction", undefined);
     } catch {}
 
     expect(store.getTotalErrorCount()).toBeGreaterThan(0);
@@ -278,7 +280,7 @@ describe("Store Edge Cases", () => {
 
     const backToIdle = transitions(readyState);
     expect(backToIdle._tag).toBe("Idle");
-    expect((backToIdle as { value: number }).value).toBe(0);
+    expect((backToIdle as Extract<CounterStateType, { value: number }>).value).toBe(0);
   });
 
   it("should handle registered actions list", () => {
@@ -288,11 +290,11 @@ describe("Store Edge Cases", () => {
 
     expect(store.registeredActions).toEqual([]);
 
-    const action1 = createAction("Action1")
-      .withPayload({})
+    const action1 = createAction<undefined, CounterStateType>("Action1")
+      .withPayload(undefined)
       .withState((s) => s);
-    const action2 = createAction("Action2")
-      .withPayload({})
+    const action2 = createAction<undefined, CounterStateType>("Action2")
+      .withPayload(undefined)
       .withState((s) => s);
 
     store.register("Action1", action1);
@@ -324,8 +326,8 @@ describe("Store Edge Cases", () => {
       name: "ClearErrors",
     });
 
-    const failAction = createAction("Fail")
-      .withPayload({})
+    const failAction = createAction<undefined, CounterStateType>("Fail")
+      .withPayload(undefined)
       .withState(() => {
         throw new Error("Test");
       });
@@ -333,7 +335,7 @@ describe("Store Edge Cases", () => {
     store.register("Fail", failAction);
 
     try {
-      store.dispatch("tagix/action/Fail", {});
+      store.dispatch("tagix/action/Fail", undefined);
     } catch {}
 
     expect(store.getTotalErrorCount()).toBeGreaterThan(0);

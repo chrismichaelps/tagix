@@ -9,9 +9,11 @@ const CounterState = taggedEnum({
   Pending: { value: 0, retries: 0 },
 });
 
+type CounterStateType = typeof CounterState.State;
+
 describe("createAction", () => {
   it("should create basic action with type and payload", () => {
-    const increment = createAction("Increment")
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
       .withPayload({ amount: 1 })
       .withState((state, payload) => ({
         ...state,
@@ -28,8 +30,8 @@ describe("createAction", () => {
       name: "Counter",
     });
 
-    const increment = createAction("Increment")
-      .withPayload({ amount: 5 } as { amount: number })
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 5 })
       .withState((state, payload) => ({
         ...state,
         value: state.value + payload.amount,
@@ -38,7 +40,8 @@ describe("createAction", () => {
     store.register("Increment", increment);
     store.dispatch("tagix/action/Increment", { amount: 5 });
 
-    expect((store.stateValue as { value: number }).value).toBe(5);
+    const idleState = store.stateValue as Extract<CounterStateType, { _tag: "Idle" }>;
+    expect(idleState.value).toBe(5);
     expect(store.stateValue._tag).toBe("Idle");
   });
 
@@ -55,14 +58,15 @@ describe("createAction", () => {
       name: "NoPayload",
     });
 
-    const reset = createAction("Reset")
+    const reset = createAction<undefined, CounterStateType>("Reset")
       .withPayload(undefined)
       .withState((state) => ({ ...state, value: 0 }));
 
     store.register("Reset", reset);
     store.dispatch("tagix/action/Reset", undefined);
 
-    expect((store.stateValue as { value: number }).value).toBe(0);
+    const idleState = store.stateValue as Extract<CounterStateType, { _tag: "Idle" }>;
+    expect(idleState.value).toBe(0);
   });
 
   it("should handle multiple sequential actions", () => {
@@ -70,22 +74,24 @@ describe("createAction", () => {
       name: "MultiCounter",
     });
 
-    const add = createAction("Add")
-      .withPayload({ n: 10 } as { n: number })
+    const add = createAction<{ n: number }, CounterStateType>("Add")
+      .withPayload({ n: 10 })
       .withState((s, p) => ({ ...s, value: s.value + p.n }));
 
-    const multiply = createAction("Multiply")
-      .withPayload({ n: 2 } as { n: number })
+    const multiply = createAction<{ n: number }, CounterStateType>("Multiply")
+      .withPayload({ n: 2 })
       .withState((s, p) => ({ ...s, value: s.value * p.n }));
 
     store.register("Add", add);
     store.register("Multiply", multiply);
 
     store.dispatch("tagix/action/Add", { n: 10 });
-    expect((store.stateValue as { value: number }).value).toBe(10);
+    let state = store.stateValue as Extract<CounterStateType, { _tag: "Idle" }>;
+    expect(state.value).toBe(10);
 
     store.dispatch("tagix/action/Multiply", { n: 2 });
-    expect((store.stateValue as { value: number }).value).toBe(20);
+    state = store.stateValue as Extract<CounterStateType, { _tag: "Idle" }>;
+    expect(state.value).toBe(20);
   });
 
   it("should handle action with conditional state transition", () => {
@@ -93,8 +99,10 @@ describe("createAction", () => {
       name: "Conditional",
     });
 
-    const conditionalUpdate = createAction("ConditionalUpdate")
-      .withPayload({ threshold: 5 } as { threshold: number })
+    const conditionalUpdate = createAction<{ threshold: number }, CounterStateType>(
+      "ConditionalUpdate"
+    )
+      .withPayload({ threshold: 5 })
       .withState((s, p) => {
         if (s.value >= p.threshold) {
           return { ...s, _tag: "Ready" as const, value: s.value };
@@ -107,8 +115,8 @@ describe("createAction", () => {
     store.dispatch("tagix/action/ConditionalUpdate", { threshold: 5 });
     expect(store.stateValue._tag).toBe("Idle");
 
-    const add = createAction("Add")
-      .withPayload({ amount: 10 } as { amount: number })
+    const add = createAction<{ amount: number }, CounterStateType>("Add")
+      .withPayload({ amount: 10 })
       .withState((s, p) => ({ ...s, value: s.value + p.amount }));
     store.register("Add", add);
 
@@ -122,7 +130,7 @@ describe("createAction", () => {
       name: "Preserve",
     });
 
-    const noOp = createAction("NoOp")
+    const noOp = createAction<{}, CounterStateType>("NoOp")
       .withPayload({})
       .withState((s) => s);
 
@@ -138,14 +146,15 @@ describe("createAction", () => {
       name: "LargePayload",
     });
 
-    const largeAdd = createAction("LargeAdd")
-      .withPayload({ amount: 1000000 } as { amount: number })
+    const largeAdd = createAction<{ amount: number }, CounterStateType>("LargeAdd")
+      .withPayload({ amount: 1000000 })
       .withState((s, p) => ({ ...s, value: s.value + p.amount }));
 
     store.register("LargeAdd", largeAdd);
     store.dispatch("tagix/action/LargeAdd", { amount: 1000000 });
 
-    expect((store.stateValue as { value: number }).value).toBe(1000000);
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Idle" }>;
+    expect(state.value).toBe(1000000);
   });
 
   it("should handle negative payload values", () => {
@@ -153,20 +162,21 @@ describe("createAction", () => {
       name: "Negative",
     });
 
-    const subtract = createAction("Subtract")
-      .withPayload({ amount: 3 } as { amount: number })
+    const subtract = createAction<{ amount: number }, CounterStateType>("Subtract")
+      .withPayload({ amount: 3 })
       .withState((s, p) => ({ ...s, value: s.value - p.amount }));
 
     store.register("Subtract", subtract);
     store.dispatch("tagix/action/Subtract", { amount: 3 });
 
-    expect((store.stateValue as { value: number }).value).toBe(7);
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+    expect(state.value).toBe(7);
   });
 });
 
 describe("createAsyncAction", () => {
   it("should create async action with effect, onSuccess, and onError", () => {
-    const fetchData = createAsyncAction("FetchData")
+    const fetchData = createAsyncAction<string, CounterStateType, string>("FetchData")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 10 }))
@@ -184,7 +194,7 @@ describe("createAsyncAction", () => {
       name: "AsyncTest",
     });
 
-    const fetchData = createAsyncAction("FetchData")
+    const fetchData = createAsyncAction<undefined, CounterStateType, string>("FetchData")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "mock-data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 100 }))
@@ -194,7 +204,8 @@ describe("createAsyncAction", () => {
     await store.dispatch("tagix/action/FetchData", {});
 
     expect(store.stateValue._tag).toBe("Ready");
-    expect((store.stateValue as { value: number }).value).toBe(100);
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+    expect(state.value).toBe(100);
   });
 
   it("should handle async action error", async () => {
@@ -202,18 +213,16 @@ describe("createAsyncAction", () => {
       name: "AsyncErrorTest",
     });
 
-    const failingAction = createAsyncAction("FailingAPI")
+    const failingAction = createAsyncAction<undefined, CounterStateType, unknown>("FailingAPI")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         throw new Error("API failed");
       })
       .onSuccess((s, r) => ({ ...s, _tag: "Ready", value: 10 }))
-      .onError((s, error) => ({
-        ...s,
-        _tag: "Error",
-        message: String(error),
-        code: 500,
-      }));
+      .onError((s, error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        return { ...s, _tag: "Error" as const, message: err.message, code: 500 };
+      });
 
     store.register("FailingAPI", failingAction);
 
@@ -222,7 +231,8 @@ describe("createAsyncAction", () => {
     } catch {}
 
     expect(store.stateValue._tag).toBe("Error");
-    expect((store.stateValue as { code: number }).code).toBe(500);
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Error" }>;
+    expect(state.code).toBe(500);
   });
 
   it("should fetch from public API (JSONPlaceholder)", async () => {
@@ -230,7 +240,7 @@ describe("createAsyncAction", () => {
       name: "APITest",
     });
 
-    const fetchUsers = createAsyncAction("FetchUsers")
+    const fetchUsers = createAsyncAction<undefined, CounterStateType, unknown[]>("FetchUsers")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/users");
@@ -254,7 +264,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/FetchUsers", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(10);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(10);
     } catch (e) {
       console.log("API test skipped due to network error:", (e as Error).message);
     }
@@ -265,7 +276,7 @@ describe("createAsyncAction", () => {
       name: "PostAPITest",
     });
 
-    const fetchPost = createAsyncAction("FetchPost")
+    const fetchPost = createAsyncAction<undefined, CounterStateType, { id: number }>("FetchPost")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/1");
@@ -275,7 +286,7 @@ describe("createAsyncAction", () => {
       .onSuccess((s, data) => ({
         ...s,
         _tag: "Ready" as const,
-        value: (data as { id: number }).id,
+        value: data.id,
       }))
       .onError((s, error) => ({
         ...s,
@@ -289,7 +300,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/FetchPost", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(1);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(1);
     } catch (e) {
       console.log("API test skipped due to network error:", (e as Error).message);
     }
@@ -300,7 +312,7 @@ describe("createAsyncAction", () => {
       name: "NotFoundTest",
     });
 
-    const fetchNotFound = createAsyncAction("FetchNotFound")
+    const fetchNotFound = createAsyncAction<undefined, CounterStateType, unknown>("FetchNotFound")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/99999");
@@ -324,7 +336,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/FetchNotFound", {});
       expect(store.stateValue._tag).toBe("Error");
-      expect((store.stateValue as { code: number }).code).toBe(404);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Error" }>;
+      expect(state.code).toBe(404);
     } catch (e) {
       console.log("API test skipped due to network error:", (e as Error).message);
     }
@@ -336,7 +349,7 @@ describe("createAsyncAction", () => {
     });
 
     const fetchData = (id: number) =>
-      createAsyncAction(`FetchData${id}`)
+      createAsyncAction<undefined, CounterStateType, unknown>(`FetchData${id}`)
         .state((s) => s)
         .effect(async () => {
           const response = await fetch(`https://jsonplaceholder.typicode.com/users/${id}`);
@@ -369,7 +382,7 @@ describe("createAsyncAction", () => {
     });
 
     let attempts = 0;
-    const retryAction = createAsyncAction("RetryAction")
+    const retryAction = createAsyncAction<undefined, CounterStateType, string>("RetryAction")
       .state((s) => ({ ...s, _tag: "Loading" as const }))
       .effect(async () => {
         attempts++;
@@ -384,15 +397,17 @@ describe("createAsyncAction", () => {
         value: attempts,
       }))
       .onError((s, error) => {
-        const retries = (s as { retries: number }).retries + 1;
+        const pendingState = s as Extract<CounterStateType, { _tag: "Pending" }>;
+        const retries = pendingState.retries + 1;
         if (retries < 3) {
-          return { ...s, _tag: "Pending" as const, retries };
+          return { ...s, _tag: "Pending" as const, value: s.value, retries };
         }
         return {
           ...s,
           _tag: "Error" as const,
           message: String(error),
           code: 0,
+          value: s.value,
           retries,
         };
       });
@@ -402,7 +417,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/RetryAction", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(3);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(3);
     } catch (e) {
       console.log("Retry test result:", (e as Error).message);
     }
@@ -413,7 +429,7 @@ describe("createAsyncAction", () => {
       name: "CreatePostTest",
     });
 
-    const createPost = createAsyncAction("CreatePost")
+    const createPost = createAsyncAction<undefined, CounterStateType, { id: number }>("CreatePost")
       .state((s) => ({ ...s, _tag: "Loading" as const }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts", {
@@ -431,7 +447,7 @@ describe("createAsyncAction", () => {
       .onSuccess((s, data) => ({
         ...s,
         _tag: "Ready" as const,
-        value: (data as { id: number }).id,
+        value: data.id,
       }))
       .onError((s, error) => ({
         ...s,
@@ -445,7 +461,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/CreatePost", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBeGreaterThan(0);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBeGreaterThan(0);
     } catch (e) {
       console.log("Create post test skipped due to network error:", (e as Error).message);
     }
@@ -456,7 +473,7 @@ describe("createAsyncAction", () => {
       name: "UpdatePostTest",
     });
 
-    const updatePost = createAsyncAction("UpdatePost")
+    const updatePost = createAsyncAction<undefined, CounterStateType, { id: number }>("UpdatePost")
       .state((s) => ({ ...s, _tag: "Loading" as const }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/1", {
@@ -475,7 +492,7 @@ describe("createAsyncAction", () => {
       .onSuccess((s, data) => ({
         ...s,
         _tag: "Ready" as const,
-        value: (data as { id: number }).id,
+        value: data.id,
       }))
       .onError((s, error) => ({
         ...s,
@@ -489,7 +506,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/UpdatePost", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(1);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(1);
     } catch (e) {
       console.log("Update post test skipped due to network error:", (e as Error).message);
     }
@@ -500,7 +518,9 @@ describe("createAsyncAction", () => {
       name: "DeletePostTest",
     });
 
-    const deletePost = createAsyncAction("DeletePost")
+    const deletePost = createAsyncAction<undefined, CounterStateType, { success: boolean }>(
+      "DeletePost"
+    )
       .state((s) => ({ ...s, _tag: "Loading" as const }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/1", {
@@ -526,7 +546,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/DeletePost", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(1);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(1);
     } catch (e) {
       console.log("Delete post test skipped due to network error:", (e as Error).message);
     }
@@ -537,7 +558,7 @@ describe("createAsyncAction", () => {
       name: "DispatchReturn",
     });
 
-    const fetchData = createAsyncAction("FetchData")
+    const fetchData = createAsyncAction<undefined, CounterStateType, string>("FetchData")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 10 }))
@@ -556,18 +577,16 @@ describe("createAsyncAction", () => {
       name: "ErrorCatch",
     });
 
-    const riskyFetch = createAsyncAction("RiskyFetch")
+    const riskyFetch = createAsyncAction<undefined, CounterStateType, unknown>("RiskyFetch")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         throw new Error("Request failed");
       })
       .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
-      .onError((s, error) => ({
-        ...s,
-        _tag: "Error" as const,
-        message: error.message,
-        code: 500,
-      }));
+      .onError((s, error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        return { ...s, _tag: "Error" as const, message: err.message, code: 500 };
+      });
 
     store.register("RiskyFetch", riskyFetch);
 
@@ -580,7 +599,8 @@ describe("createAsyncAction", () => {
 
     expect(caughtError).toBe(false);
     expect(store.stateValue._tag).toBe("Error");
-    expect((store.stateValue as { message: string }).message).toBe("Request failed");
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Error" }>;
+    expect(state.message).toBe("Request failed");
   });
 
   it("should fetch todos from public API", async () => {
@@ -588,7 +608,7 @@ describe("createAsyncAction", () => {
       name: "TodosTest",
     });
 
-    const fetchTodos = createAsyncAction("FetchTodos")
+    const fetchTodos = createAsyncAction<undefined, CounterStateType, unknown[]>("FetchTodos")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/todos?_limit=5");
@@ -612,7 +632,8 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/FetchTodos", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(5);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(5);
     } catch (e) {
       console.log("Todos test skipped due to network error:", (e as Error).message);
     }
@@ -623,7 +644,7 @@ describe("createAsyncAction", () => {
       name: "CommentsTest",
     });
 
-    const fetchComments = createAsyncAction("FetchComments")
+    const fetchComments = createAsyncAction<undefined, CounterStateType, unknown[]>("FetchComments")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/comments?postId=1");
@@ -647,9 +668,60 @@ describe("createAsyncAction", () => {
     try {
       await store.dispatch("tagix/action/FetchComments", {});
       expect(store.stateValue._tag).toBe("Ready");
-      expect((store.stateValue as { value: number }).value).toBe(5);
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(5);
     } catch (e) {
       console.log("Comments test skipped due to network error:", (e as Error).message);
+    }
+  });
+});
+
+describe("createAsyncAction - Retry Logic", () => {
+  it("should handle async action with retry logic", async () => {
+    const store = createStore(CounterState.Pending({ value: 0, retries: 0 }), CounterState, {
+      name: "RetryTest",
+    });
+
+    let attempts = 0;
+    const retryAction = createAsyncAction<undefined, CounterStateType, string>("RetryAction")
+      .state((s) => ({ ...s, _tag: "Loading" as const }))
+      .effect(async () => {
+        attempts++;
+        if (attempts < 3) {
+          throw new Error("Temporary failure");
+        }
+        return "success";
+      })
+      .onSuccess((s, result) => ({
+        ...s,
+        _tag: "Ready" as const,
+        value: attempts,
+      }))
+      .onError((s, error) => {
+        const pendingState = s as Extract<CounterStateType, { _tag: "Pending" }>;
+        const retries = pendingState.retries + 1;
+        if (retries < 3) {
+          return { ...s, _tag: "Pending" as const, value: s.value, retries };
+        }
+        return {
+          ...s,
+          _tag: "Error" as const,
+          message: String(error),
+          code: 0,
+          value: s.value,
+          retries,
+        };
+      });
+
+    store.register("RetryAction", retryAction);
+
+    try {
+      await store.dispatch("tagix/action/RetryAction", {});
+      expect(store.stateValue._tag).toBe("Ready");
+      const state = store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>;
+      expect(state.value).toBe(3);
+    } catch (e) {
+      console.log("Retry test result:", (e as Error).message);
     }
   });
 });
