@@ -29,6 +29,19 @@ interface Patchable<T> extends Function {
   value: T;
 }
 
+/**
+ * Creates an immutable patching function for objects.
+ * @typeParam T - The object type.
+ * @param base - The base object to patch.
+ * @returns A chainable patching function with a `value` property.
+ * @remarks Each call returns a new object, enabling immutable updates.
+ * @example
+ * ```ts
+ * const patcher = patch({ a: 1, b: 2 });
+ * const result = patcher({ b: 3 })({ c: 4 }).value;
+ * // result = { a: 1, b: 3, c: 4 }
+ * ```
+ */
 export function patch<T extends object>(base: T): Patchable<T> {
   const fn: Patchable<T> = Object.assign(
     (updates: Partial<T>): Patchable<T> => {
@@ -40,6 +53,14 @@ export function patch<T extends object>(base: T): Patchable<T> {
   return fn;
 }
 
+/**
+ * Gets state from a store if it matches the specified tag.
+ * @typeParam S - The state type.
+ * @typeParam K - The state tag type.
+ * @param store - The store instance.
+ * @param tag - The state tag to match.
+ * @returns Some(state) if tag matches, None otherwise.
+ */
 export function getState<S extends { readonly _tag: string }, K extends S["_tag"]>(
   store: { stateValue: S },
   tag: K
@@ -48,10 +69,26 @@ export function getState<S extends { readonly _tag: string }, K extends S["_tag"
   return s._tag === tag ? some(s as Extract<S, { _tag: K }>) : none();
 }
 
+/**
+ * Selects a property from an object.
+ * @typeParam T - The object type.
+ * @typeParam K - The property key type.
+ * @param obj - The object to select from.
+ * @param key - The property key.
+ * @returns The property value, or undefined if not present.
+ */
 export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K] | undefined {
   return key in obj ? obj[key] : undefined;
 }
 
+/**
+ * Creates a function that plucks a property (or nested property) from an object.
+ * @typeParam T - The object type.
+ * @typeParam K - The property path type (supports dot notation).
+ * @param key - The property key or dot-separated path (e.g., "user.name").
+ * @returns A function that extracts the value at the path.
+ * @remarks Returns undefined if any part of the path is null/undefined.
+ */
 export function pluck<T extends object, K extends string>(key: K): (obj: T) => unknown {
   return (obj: T): unknown => {
     if (key.includes(".")) {
@@ -67,11 +104,32 @@ export function pluck<T extends object, K extends string>(key: K): (obj: T) => u
   };
 }
 
+/**
+ * Combines multiple selectors into a single selector returning a tuple.
+ * @typeParam T - The input state type.
+ * @typeParam R1 - The first selector return type.
+ * @typeParam R2 - The second selector return type.
+ * @param selector1 - First selector function.
+ * @param selector2 - Second selector function.
+ * @returns A selector that returns a tuple of results.
+ * @remarks Overloaded for 2 or 3 selectors.
+ */
 export function combineSelectors<T extends object, R1, R2>(
   selector1: (state: T) => R1,
   selector2: (state: T) => R2
 ): (state: T) => readonly [R1, R2];
 
+/**
+ * Combines three selectors into a single selector returning a tuple.
+ * @typeParam T - The input state type.
+ * @typeParam R1 - The first selector return type.
+ * @typeParam R2 - The second selector return type.
+ * @typeParam R3 - The third selector return type.
+ * @param selector1 - First selector function.
+ * @param selector2 - Second selector function.
+ * @param selector3 - Third selector function.
+ * @returns A selector that returns a tuple of three results.
+ */
 export function combineSelectors<T extends object, R1, R2, R3>(
   selector1: (state: T) => R1,
   selector2: (state: T) => R2,
@@ -89,6 +147,14 @@ export function combineSelectors<T extends object, R1, R2, R3>(
   return (state) => [selector1(state), selector2(state)];
 }
 
+/**
+ * Memoizes a selector function using reference equality.
+ * @typeParam T - The input type.
+ * @typeParam R - The return type.
+ * @param selector - The selector function to memoize.
+ * @returns A memoized version that returns cached result for same input reference.
+ * @remarks Uses `Object.is` for equality comparison. Cache invalidates on new input reference.
+ */
 export function memoize<T extends object, R>(selector: (input: T) => R): (input: T) => R {
   let lastInput: T | undefined;
   let lastResult: R | undefined;
@@ -103,6 +169,14 @@ export function memoize<T extends object, R>(selector: (input: T) => R): (input:
   };
 }
 
+/**
+ * Type guard that checks if an object has a specific property.
+ * @typeParam T - The object type.
+ * @typeParam K - The property key type.
+ * @param obj - The object to check.
+ * @param key - The property key to check for.
+ * @returns True if the object has the property, narrowing the type.
+ */
 export function hasProperty<T extends object, K extends string>(
   obj: T,
   key: K
@@ -110,6 +184,12 @@ export function hasProperty<T extends object, K extends string>(
   return key in obj;
 }
 
+/**
+ * Creates a function that returns a default value if input is undefined.
+ * @typeParam T - The value type.
+ * @param defaultValue - The default value to use.
+ * @returns A function that returns the input value or the default.
+ */
 export function getOrDefault<T>(defaultValue: T): (value: T | undefined) => T {
   return (value) => value ?? defaultValue;
 }
