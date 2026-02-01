@@ -25,6 +25,15 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { isFunction } from "../../lib/Data/predicate";
 import { NonExhaustiveMatchError } from "../error";
 
+/**
+ * Pattern matches on state, executing the handler for the matching tag.
+ * @typeParam S - The state type.
+ * @typeParam R - The return type.
+ * @param state - The state to match on.
+ * @param cases - Object mapping state tags to handlers.
+ * @returns The handler result, or undefined if no handler exists for the tag.
+ * @remarks Non-exhaustive: missing tags return undefined.
+ */
 export function matchState<S extends { readonly _tag: string }, R>(
   state: S,
   cases: { [K in S["_tag"]]?: (value: Extract<S, { _tag: K }>) => R }
@@ -37,6 +46,16 @@ export function matchState<S extends { readonly _tag: string }, R>(
   return handler(taggedState);
 }
 
+/**
+ * Exhaustive pattern matching on state, requiring handlers for all tags.
+ * @typeParam S - The state type.
+ * @typeParam R - The return type.
+ * @param state - The state to match on.
+ * @param cases - Object mapping all state tags to handlers.
+ * @returns The handler result for the matching tag.
+ * @throws {NonExhaustiveMatchError} If no handler exists for the state tag.
+ * @remarks Enforces compile-time exhaustiveness via type system.
+ */
 export function exhaust<S extends { readonly _tag: string }, R>(
   state: S,
   cases: { [K in S["_tag"]]: (value: Extract<S, { _tag: K }>) => R }
