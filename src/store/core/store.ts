@@ -23,7 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { isFunction } from "../../lib/Data/predicate";
-import { tryCatch, tryCatchAsync, isLeft } from "../../lib/Data/either";
+import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
 import type { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
 import type {
@@ -321,22 +321,22 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns Promise for async actions, void for sync actions.
    * @throws {ActionNotFoundError} If the action type is not registered.
    */
-  dispatch<TPayload>(type: string, payload: TPayload): void | Promise<void> {
+  dispatch<TPayload>(type: string, _payload: TPayload): void | Promise<void> {
     const action = this.actions.get(type);
 
     if (action === null || action === undefined) {
       throw new ActionNotFoundError({ type });
     }
 
-    this._currentPayload = payload;
-
     if ("effect" in action) {
       const asyncAction = action as unknown as AsyncAction<TPayload, S, unknown>;
+      this._currentPayload = _payload;
       this._dispatchMiddleware(asyncAction as unknown as Action | AsyncAction);
-      return this.handleAsyncAction(asyncAction, payload);
+      return this.handleAsyncAction(asyncAction, _payload);
     }
 
     const syncAction = action as unknown as Action<TPayload, S>;
+    this._currentPayload = syncAction.payload;
     this._dispatchMiddleware(syncAction as unknown as Action | AsyncAction);
   }
 
@@ -355,47 +355,70 @@ export class TagixStore<S extends { readonly _tag: string }> {
       (err) => (err instanceof Error ? err : new Error(String(err)))
     );
 
-    if (isLeft(result)) {
-      this.recordError(result.left);
-      throw result.left;
-    }
+    match(result, {
+      onLeft: (error: Error) => {
+        this.recordError(error);
+        throw error;
+      },
+      onRight: (newState: S) => {
+        if (this.config.strict && !this._validStateTags.has(newState._tag)) {
+          throw new StateTransitionError({
+            expected: Array.from(this._validStateTags),
+            actual: newState._tag,
+            action: action.type,
+          });
+        }
 
-    const newState = result.right;
-
-    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
-      throw new StateTransitionError({
-        expected: Array.from(this._validStateTags),
-        actual: newState._tag,
-        action: action.type,
-      });
-    }
-
-    this.state = newState;
-    this.addToHistory(newState);
-    this.notifySubscribers();
+        this.state = newState;
+        this.addToHistory(newState);
+        this.notifySubscribers();
+      },
+    });
   }
 
   private async handleAsyncAction<TPayload>(
     action: AsyncAction<TPayload, S, unknown>,
     payload: TPayload
   ): Promise<void> {
-    this.state = action.state(this.state);
-    this.notifySubscribers();
+    const maxRetries = this.config.maxRetries;
+    let attempt = 0;
+    let lastError: unknown;
+    let currentState = this.state;
 
-    const result = await tryCatchAsync(
-      () => action.effect(payload),
-      (err) => err
-    );
+    while (attempt <= maxRetries) {
+      currentState = action.state(currentState);
+      if (attempt === 0) {
+        this.state = currentState;
+        this.notifySubscribers();
+      }
 
-    if (isLeft(result)) {
-      this.state = action.onError(this.state, result.left);
-      this.recordError(result.left);
-      this.notifySubscribers();
-      return;
+      const result = await tryCatchAsync(
+        () => action.effect(payload),
+        (err) => err
+      );
+
+      const done = match(result, {
+        onRight: (value) => {
+          this.state = action.onSuccess(currentState, value);
+          this.addToHistory(this.state);
+          this.notifySubscribers();
+          return true;
+        },
+        onLeft: (error) => {
+          lastError = error;
+          attempt++;
+          if (attempt <= maxRetries) {
+            currentState = action.onError(currentState, error);
+          }
+          return false;
+        },
+      });
+
+      if (done) return;
     }
 
-    this.state = action.onSuccess(this.state, result.right);
-    this.addToHistory(this.state);
+    this.state = action.onError(currentState, lastError!);
+    this.recordError(lastError);
     this.notifySubscribers();
   }
 
