@@ -26,6 +26,21 @@ import type { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
 import type { StoreConfig } from "../types";
 import { TagixStore } from "./store";
 
+/**
+ * Creates a new TagixStore instance.
+ * @param initialState - The starting state, must have a `_tag` property.
+ * @param stateConstructor - TaggedEnum constructor for state type safety.
+ * @param config - Optional store configuration.
+ * @returns A new TagixStore instance.
+ * @example
+ * ```ts
+ * const store = createStore(
+ *   CounterState.Value({ count: 0 }),
+ *   CounterState,
+ *   { name: "Counter", maxUndoHistory: 50 }
+ * );
+ * ```
+ */
 export function createStore<S extends { readonly _tag: string }>(
   initialState: S,
   stateConstructor: TaggedEnumConstructor<S>,
@@ -34,4 +49,8 @@ export function createStore<S extends { readonly _tag: string }>(
   return new TagixStore(initialState, stateConstructor, config);
 }
 
+/**
+ * Core store class for Tagix state management.
+ * @remarks See {@link TagixStore} class documentation for details.
+ */
 export { TagixStore };

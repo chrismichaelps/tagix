@@ -22,6 +22,10 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
+/**
+ * Default configuration values for TagixStore.
+ * @remarks Used when no configuration is provided to `createStore`.
+ */
 export const DEFAULT_CONFIG = {
   name: "TagixStore",
   strict: false,
@@ -32,4 +36,5 @@ export const DEFAULT_CONFIG = {
     typeof window !== "undefined" && (window as any).__REDUX_DEVTOOLS_EXTENSION__ !== undefined,
 } as const;
 
+/** Prefix applied to all action types internally. */
 export const ACTION_TYPE_PREFIX = "tagix/action/";

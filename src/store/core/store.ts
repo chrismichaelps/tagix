@@ -54,6 +54,11 @@ interface LRUCacheEntry<T> {
   accessTime: number;
 }
 
+/**
+ * Core store implementation for Tagix state management.
+ * @typeParam S - The state type, must be a discriminated union with `_tag` property.
+ * @remarks Manages state transitions, history, snapshots, subscriptions, and error tracking.
+ */
 export class TagixStore<S extends { readonly _tag: string }> {
   private state: S;
   private readonly stateConstructor: TaggedEnumConstructor<S>;
@@ -110,14 +115,25 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this._dispatchMiddleware = next;
   }
 
+  /**
+   * Current state value.
+   * @remarks Read-only access to the current state. Use `dispatch` to modify state.
+   */
   get stateValue(): S {
     return this.state;
   }
 
+  /**
+   * Store name from configuration.
+   */
   get name(): string {
     return this.config.name;
   }
 
+  /**
+   * Most recent error from error history.
+   * @returns The most recent error, or undefined if no errors occurred.
+   */
   get lastError(): unknown | undefined {
     let lastError: unknown | undefined;
     let maxKey = -1;
@@ -130,34 +146,62 @@ export class TagixStore<S extends { readonly _tag: string }> {
     return lastError;
   }
 
+  /**
+   * All errors recorded in history.
+   * @remarks Limited by `maxErrorHistory` configuration.
+   */
   get errorHistory(): readonly unknown[] {
     return Array.from(this._errorHistory.values());
   }
 
+  /**
+   * History up to the current undo index.
+   * @remarks Includes all states from initial state to current position.
+   */
   get currentHistory(): readonly S[] {
     return this.history.slice(0, this.undoIndex + 1);
   }
 
+  /**
+   * Total number of states in history.
+   */
   get historyLength(): number {
     return this.history.length;
   }
 
+  /**
+   * Current position in undo/redo history.
+   * @remarks -1 indicates at initial state, positive values indicate forward in history.
+   */
   get undoIndexValue(): number {
     return this.undoIndex;
   }
 
+  /**
+   * Store configuration with all defaults applied.
+   */
   get configValue(): Readonly<Required<StoreConfig<S>>> {
     return this.config;
   }
 
+  /**
+   * Names of all saved snapshots.
+   */
   get snapshotNames(): readonly string[] {
     return Array.from(this.snapshots.keys());
   }
 
+  /**
+   * All registered action type identifiers.
+   */
   get registeredActions(): readonly string[] {
     return Array.from(this.actions.keys());
   }
 
+  /**
+   * Error code of the most recent error.
+   * @returns The numeric error code, or undefined if no Tagix error occurred.
+   */
   get lastErrorCode(): number | undefined {
     const error = this.lastError;
     if (isTagixError(error)) {
@@ -167,24 +211,46 @@ export class TagixStore<S extends { readonly _tag: string }> {
     return undefined;
   }
 
+  /**
+   * Error category of the most recent error.
+   * @returns The error category, or undefined if no Tagix error occurred.
+   */
   get lastErrorCategory(): ErrorCategory | undefined {
     const code = this.lastErrorCode;
     return code !== undefined ? getErrorCategory(code) : undefined;
   }
 
+  /**
+   * Whether the most recent error is recoverable.
+   * @returns True if the error is in a recoverable category (STATE, ACTION, PAYLOAD, SNAPSHOT).
+   */
   get isLastErrorRecoverable(): boolean {
     const code = this.lastErrorCode;
     return code !== undefined ? isRecoverableError(code) : false;
   }
 
+  /**
+   * Extracts structured error information from an error.
+   * @param error - The error to extract information from.
+   * @returns TagixErrorObject if the error is a Tagix error, null otherwise.
+   */
   getErrorInfo(error: unknown): TagixErrorObject | null {
     return getErrorInfo(error);
   }
 
+  /**
+   * Gets error counts grouped by category.
+   * @returns A new Map with error counts per category.
+   */
   getErrorCountByCategory(): Map<ErrorCategory, number> {
     return new Map(this._errorCountByCategory);
   }
 
+  /**
+   * Gets all errors in a specific category.
+   * @param category - The error category to filter by.
+   * @returns Array of errors in the specified category.
+   */
   getErrorsByCategory(category: ErrorCategory): readonly unknown[] {
     const result: unknown[] = [];
     for (const error of this._errorHistory.values()) {
@@ -199,15 +265,26 @@ export class TagixStore<S extends { readonly _tag: string }> {
     return result;
   }
 
+  /**
+   * Clears all error history and category counts.
+   */
   clearErrorHistory(): void {
     this._errorHistory.clear();
     this._errorCountByCategory.clear();
   }
 
+  /**
+   * Total number of errors recorded.
+   */
   getTotalErrorCount(): number {
     return this._errorHistory.size;
   }
 
+  /**
+   * Checks if any error with the given code exists in history.
+   * @param code - The error code to check for.
+   * @returns True if at least one error with this code exists.
+   */
   hasErrorCode(code: number): boolean {
     for (const error of this._errorHistory.values()) {
       if (isTagixError(error)) {
@@ -220,14 +297,30 @@ export class TagixStore<S extends { readonly _tag: string }> {
     return false;
   }
 
+  /**
+   * Checks if undo is possible.
+   * @returns True if there are previous states to restore.
+   */
   canUndo(): boolean {
     return this.undoIndex > 0;
   }
 
+  /**
+   * Checks if redo is possible.
+   * @returns True if there are future states to restore.
+   */
   canRedo(): boolean {
     return this.undoIndex < this.history.length - 1;
   }
 
+  /**
+   * Dispatches an action to update state.
+   * @typeParam TPayload - The payload type for this dispatch.
+   * @param type - The action type identifier (without prefix).
+   * @param payload - The payload to pass to the action handler.
+   * @returns Promise for async actions, void for sync actions.
+   * @throws {ActionNotFoundError} If the action type is not registered.
+   */
   dispatch<TPayload>(type: string, payload: TPayload): void | Promise<void> {
     const action = this.actions.get(type);
 
@@ -359,6 +452,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
     }
   }
 
+  /**
+   * Reverts state to the previous state in history.
+   * @remarks Does nothing if already at the initial state. Notifies subscribers.
+   */
   undo(): void {
     if (this.undoIndex <= 0) {
       if (this.undoIndex === 0) {
@@ -373,6 +470,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.notifySubscribers();
   }
 
+  /**
+   * Advances state to the next state in history.
+   * @remarks Does nothing if already at the latest state. Notifies subscribers.
+   */
   redo(): void {
     if (!this.canRedo()) return;
     this.undoIndex++;
@@ -380,6 +481,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.notifySubscribers();
   }
 
+  /**
+   * Saves a snapshot of the current state.
+   * @param name - Unique name for the snapshot.
+   * @remarks Uses LRU eviction when `maxSnapshots` is exceeded. Updates access time if snapshot exists.
+   */
   snapshot(name: string): void {
     const isUpdate = this.snapshots.has(name);
 
@@ -411,6 +517,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
     }
   }
 
+  /**
+   * Restores state from a saved snapshot.
+   * @param name - The snapshot name to restore.
+   * @throws {SnapshotNotFoundError} If the snapshot does not exist.
+   * @remarks Updates snapshot access time and notifies subscribers.
+   */
   restore(name: string): void {
     const entry = this.snapshots.get(name);
 
@@ -426,11 +538,23 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.notifySubscribers();
   }
 
+  /**
+   * Subscribes to state changes.
+   * @param callback - Function called whenever state changes.
+   * @returns Unsubscribe function to remove the callback.
+   */
   subscribe(callback: SubscribeCallback<S>): () => void {
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
 
+  /**
+   * Registers an action or async action with the store.
+   * @typeParam TPayload - The payload type for this action.
+   * @param type - The action type identifier (without prefix).
+   * @param action - The action or async action to register.
+   * @remarks Action type is automatically prefixed with `ACTION_TYPE_PREFIX`.
+   */
   register<TPayload>(
     type: string,
     action: Action<TPayload, S> | AsyncAction<TPayload, S, any>
@@ -438,6 +562,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.actions.set(`${ACTION_TYPE_PREFIX}${type}`, action as unknown as Action | AsyncAction);
   }
 
+  /**
+   * Creates a transition function from a map of tag-specific handlers.
+   * @param transitions - Map of state tag to transition function.
+   * @returns A transition function that routes based on state tag.
+   * @remarks Returns the state unchanged if no handler exists for the current tag.
+   */
   transitions(transitions: StateTransitions<S>): (state: S, payload?: unknown) => S {
     return (state) => {
       const tag = state._tag as keyof StateTransitions<S>;
@@ -446,14 +576,31 @@ export class TagixStore<S extends { readonly _tag: string }> {
     };
   }
 
+  /**
+   * Checks if the current state has a specific tag.
+   * @param tag - The state tag to check for.
+   * @returns True if the current state's tag matches.
+   */
   isInState(tag: S["_tag"]): boolean {
     return this.state._tag === tag;
   }
 
+  /**
+   * Gets the current state if it matches the specified tag.
+   * @typeParam K - The state tag type to extract.
+   * @param tag - The state tag to match.
+   * @returns Some(state) if tag matches, None otherwise.
+   */
   getState<K extends S["_tag"]>(tag: K): Option<Extract<S, { _tag: K }>> {
     return this.state._tag === tag ? some(this.state as Extract<S, { _tag: K }>) : none();
   }
 
+  /**
+   * Selects a property from the current state.
+   * @typeParam K - The property key type.
+   * @param key - The property key to access.
+   * @returns The property value, or undefined if not present.
+   */
   select<K extends keyof S>(key: K): S[K] | undefined {
     return key in this.state ? this.state[key] : undefined;
   }
