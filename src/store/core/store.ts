@@ -67,6 +67,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly config: Required<StoreConfig<S>>;
   private readonly _validStateTags: Set<string>;
   private readonly _dispatchMiddleware: (action: Action | AsyncAction) => void;
+  private _currentPayload: unknown = undefined;
 
   constructor(
     initialState: S,
@@ -135,6 +136,18 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
   get currentHistory(): readonly S[] {
     return this.history.slice(0, this.undoIndex + 1);
+  }
+
+  get historyLength(): number {
+    return this.history.length;
+  }
+
+  get undoIndexValue(): number {
+    return this.undoIndex;
+  }
+
+  get configValue(): Readonly<Required<StoreConfig<S>>> {
+    return this.config;
   }
 
   get snapshotNames(): readonly string[] {
@@ -222,12 +235,16 @@ export class TagixStore<S extends { readonly _tag: string }> {
       throw new ActionNotFoundError({ type });
     }
 
-    this._dispatchMiddleware(action as Action | AsyncAction);
+    this._currentPayload = payload;
 
     if ("effect" in action) {
       const asyncAction = action as unknown as AsyncAction<TPayload, S, unknown>;
+      this._dispatchMiddleware(asyncAction as unknown as Action | AsyncAction);
       return this.handleAsyncAction(asyncAction, payload);
     }
+
+    const syncAction = action as unknown as Action<TPayload, S>;
+    this._dispatchMiddleware(syncAction as unknown as Action | AsyncAction);
   }
 
   private _executeAction(action: Action | AsyncAction): void {
@@ -235,13 +252,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
       return;
     }
 
-    const syncAction = action as unknown as Action<unknown, S>;
-    this.handleAction(syncAction);
+    const syncAction = action as any as Action<any, S>;
+    this.handleAction(syncAction, this._currentPayload as any);
   }
 
-  private handleAction<TPayload>(action: Action<TPayload, S>): void {
+  private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {
     const result = tryCatch<S, Error>(
-      () => action.handler(this.state, action.payload),
+      () => action.handler(this.state, payload),
       (err) => (err instanceof Error ? err : new Error(String(err)))
     );
 
@@ -293,9 +310,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.history.push(newState);
     this.undoIndex = this.history.length - 1;
 
-    if (this.history.length > this.config.maxUndoHistory) {
-      this.history.shift();
-      this.undoIndex--;
+    const maxHistory = this.config.maxUndoHistory;
+    if (maxHistory > 0) {
+      while (this.history.length > maxHistory + 1) {
+        this.history.shift();
+        this.undoIndex = this.history.length - 1;
+      }
     }
   }
 
@@ -340,7 +360,14 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   undo(): void {
-    if (this.undoIndex <= 0) return;
+    if (this.undoIndex <= 0) {
+      if (this.undoIndex === 0) {
+        this.state = this.history[0];
+        this.undoIndex = -1;
+        this.notifySubscribers();
+      }
+      return;
+    }
     this.undoIndex--;
     this.state = this.history[this.undoIndex];
     this.notifySubscribers();
@@ -354,6 +381,8 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   snapshot(name: string): void {
+    const isUpdate = this.snapshots.has(name);
+
     const entry: LRUCacheEntry<Snapshot<S>> = {
       value: {
         name,
@@ -365,13 +394,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     this.snapshots.set(name, entry);
 
-    if (this.snapshots.size > this.config.maxSnapshots) {
+    if (!isUpdate && this.snapshots.size > this.config.maxSnapshots) {
       let oldestName: string | undefined;
       let oldestTime = Infinity;
 
-      for (const [snapName, entry] of this.snapshots) {
-        if (entry.accessTime < oldestTime) {
-          oldestTime = entry.accessTime;
+      for (const [snapName, snapEntry] of this.snapshots) {
+        if (snapEntry.accessTime < oldestTime) {
+          oldestTime = snapEntry.accessTime;
           oldestName = snapName;
         }
       }
@@ -394,7 +423,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     entry.accessTime = Date.now();
     this.state = entry.value.state;
-    this.addToHistory(this.state);
     this.notifySubscribers();
   }
 
