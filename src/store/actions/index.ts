@@ -43,6 +43,9 @@ interface AsyncActionBuilder<TPayload, TState, TEffect> {
   ): AsyncAction<TPayload, TState, TEffect>;
 }
 
+export function createAction<TPayload, S extends { readonly _tag: string }>(
+  type: string
+): ActionBuilder<TPayload, S>;
 export function createAction<TPayload = never, S extends { readonly _tag: string } = never>(
   type: string
 ): ActionBuilder<TPayload, S> {
@@ -65,10 +68,13 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
   };
 }
 
+export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect>(
+  type: string
+): AsyncActionBuilder<TPayload, S, TEffect>;
 export function createAsyncAction<
   TPayload = never,
   S extends { readonly _tag: string } = never,
-  TEffect = never,
+  TEffect = unknown,
 >(type: string): AsyncActionBuilder<TPayload, S, TEffect> {
   let stateFn: (currentState: S) => S = (s) => s;
   let effectFn: (payload: TPayload) => Promise<TEffect> = async () => undefined as TEffect;
