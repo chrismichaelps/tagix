@@ -32,6 +32,7 @@ export const DEFAULT_CONFIG = {
   maxErrorHistory: 50,
   maxSnapshots: 10,
   maxUndoHistory: 100,
+  maxRetries: 3,
   devTools:
     typeof window !== "undefined" && (window as any).__REDUX_DEVTOOLS_EXTENSION__ !== undefined,
 } as const;

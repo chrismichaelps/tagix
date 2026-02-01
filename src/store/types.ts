@@ -37,6 +37,8 @@ export interface StoreConfig<S extends { readonly _tag: string }> {
   readonly maxSnapshots?: number;
   /** Maximum number of undo steps to retain (includes initial state). @default 100 */
   readonly maxUndoHistory?: number;
+  /** Maximum number of retries for failed async actions. @default 3 */
+  readonly maxRetries?: number;
   /** Middleware chain for intercepting dispatches. */
   readonly middlewares?: Array<Middleware<S>>;
 }
