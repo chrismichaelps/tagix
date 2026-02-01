@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createStore, createAction, createLoggerMiddleware, taggedEnum } from "../../index";
+import {
+  createStore,
+  createAction,
+  createAsyncAction,
+  createLoggerMiddleware,
+  taggedEnum,
+} from "../../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -95,5 +101,44 @@ describe("createLoggerMiddleware", () => {
     });
 
     expect(store.name).toBe("ActionTransformerTest");
+  });
+
+  it("should work with async actions", async () => {
+    const AppState = taggedEnum({
+      Idle: {},
+      Loading: {},
+      Success: { data: null },
+      Error: { message: "" },
+    });
+
+    const store = createStore(AppState.Idle(), AppState, {
+      name: "AppAsync",
+      middlewares: [createLoggerMiddleware({ collapsed: true, duration: true })],
+    });
+
+    const fetchData = createAsyncAction("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => "test-data")
+      .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
+      .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+
+    store.register("FetchData", fetchData);
+    await store.dispatch("tagix/action/FetchData", {});
+
+    expect(store.stateValue._tag).toBe("Success");
+  });
+
+  it("should handle disabled for production pattern", () => {
+    const logger =
+      process.env.NODE_ENV === "development"
+        ? createLoggerMiddleware({ collapsed: true })
+        : undefined;
+
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "ProdTest",
+      middlewares: logger ? [logger] : [],
+    });
+
+    expect(store).toBeDefined();
   });
 });

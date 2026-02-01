@@ -95,3 +95,68 @@ describe("exhaust()", () => {
     expect(exhaust(errorStore.stateValue, mapper)).toBe("Error:fail");
   });
 });
+
+describe("Dynamic Patterns", () => {
+  it("should build patterns dynamically", () => {
+    const store = createStore(CounterState.Ready({ value: 42 }), CounterState, {
+      name: "Counter",
+    });
+
+    const createStatusMessage = (showDetails: boolean) => {
+      return matchState(store.stateValue, {
+        Idle: () => "Ready",
+        Loading: () => (showDetails ? "Loading..." : "Working"),
+        Ready: (s) => (showDetails ? `Done: ${s.value}` : "Done"),
+        Error: (s) => (showDetails ? `Error: ${s.message}` : "Failed"),
+      });
+    };
+
+    expect(createStatusMessage(true)).toBe("Done: 42");
+    expect(createStatusMessage(false)).toBe("Done");
+  });
+});
+
+describe("Complete Match Example", () => {
+  it("should work with complete task state example", () => {
+    const TaskState = taggedEnum({
+      Pending: { retries: 0 },
+      Running: { progress: 0 },
+      Completed: { result: null },
+      Failed: { error: "" },
+    });
+
+    const store = createStore(TaskState.Running({ progress: 75 }), TaskState, {
+      name: "Task",
+    });
+
+    const status = matchState(store.stateValue, {
+      Pending: () => "Waiting to start",
+      Running: (s) => `Progress: ${s.progress}%`,
+      Completed: () => "Done!",
+    });
+
+    expect(status).toBe("Progress: 75%");
+
+    const statusMessage = exhaust(store.stateValue, {
+      Pending: () => "In progress",
+      Running: (s) => `${s.progress}% complete`,
+      Completed: () => "Finished",
+      Failed: (s) => `Failed: ${s.error}`,
+    });
+
+    expect(statusMessage).toBe("75% complete");
+
+    const renderTask = (state: typeof store.stateValue) => {
+      return (
+        matchState(state, {
+          Pending: (s) => `<div>Retries: ${s.retries}</div>`,
+          Running: (s) => `<div>Progress: ${s.progress}%</div>`,
+          Completed: () => `<div>Done</div>`,
+          Failed: (s) => `<div>${s.error}</div>`,
+        }) || "<div>Unknown state</div>"
+      );
+    };
+
+    expect(renderTask(store.stateValue)).toBe("<div>Progress: 75%</div>");
+  });
+});

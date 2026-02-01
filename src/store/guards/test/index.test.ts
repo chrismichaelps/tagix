@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { createStore, when, on, withState, getTag, isInState, taggedEnum } from "../../index";
+import {
+  createStore,
+  when,
+  on,
+  withState,
+  getTag,
+  isInState,
+  hasTag,
+  taggedEnum,
+} from "../../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -102,5 +111,47 @@ describe("isInState()", () => {
     expect(isInState(store, "Idle")).toBe(false);
     expect(isInState(store, "Loading")).toBe(false);
     expect(isInState(store, "Error")).toBe(false);
+  });
+});
+
+describe("hasTag()", () => {
+  it("should check if any state has specific tag", () => {
+    const store = createStore(CounterState.Ready({ value: 10 }), CounterState, {
+      name: "Counter",
+    });
+
+    expect(hasTag(store.stateValue, "Ready")).toBe(true);
+    expect(hasTag(store.stateValue, "Idle")).toBe(false);
+    expect(hasTag(CounterState.Idle({ value: 0 }), "Idle")).toBe(true);
+    expect(hasTag(CounterState.Loading({}), "Loading")).toBe(true);
+  });
+});
+
+describe("Complete Guard Example", () => {
+  it("should work with all guard functions together", () => {
+    const AppState = taggedEnum({
+      Idle: { data: null },
+      Loading: { progress: 0 },
+      Success: { data: [] },
+      Error: { message: "" },
+    });
+
+    const store = createStore(AppState.Loading({ progress: 50 }), AppState, {
+      name: "App",
+    });
+
+    if (when("Loading")(store.stateValue)) {
+      const progress = withState(store.stateValue, "Loading", (s) => s.progress);
+      expect(progress).toBe(50);
+    }
+
+    const progressHandler = on("Loading")((s) => s.progress * 2);
+    const doubled = progressHandler(store.stateValue);
+    expect(doubled).toBe(100);
+
+    const currentTag = getTag(store.stateValue);
+    expect(currentTag).toBe("Loading");
+
+    expect(isInState(store, "Loading")).toBe(true);
   });
 });
