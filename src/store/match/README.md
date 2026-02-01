@@ -144,8 +144,8 @@ const renderTask = (state: typeof store.stateValue) => {
     matchState(state, {
       Pending: (s) => `<div>Retries: ${s.retries}</div>`,
       Running: (s) => `<div>Progress: ${s.progress}%</div>`,
-      Completed: () => `<div>✅ Done</div>`,
-      Failed: (s) => `<div>❌ ${s.error}</div>`,
+      Completed: () => `<div>Done</div>`,
+      Failed: (s) => `<div>${s.error}</div>`,
     }) || "<div>Unknown state</div>"
   );
 };

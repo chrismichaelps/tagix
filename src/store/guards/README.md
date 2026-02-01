@@ -32,7 +32,7 @@ Type guard that returns `true` if state matches the given tag. Enables TypeScrip
 ```ts
 if (when("Ready")(store.stateValue)) {
   // store.stateValue is narrowed to Ready state
-  console.log(store.stateValue.value); // ✅ TypeScript knows this exists
+  console.log(store.stateValue.value); // TypeScript knows this exists
 }
 ```
 
