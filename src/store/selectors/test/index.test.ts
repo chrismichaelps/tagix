@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { select, pluck, memoize, combineSelectors, patch, taggedEnum } from "../../index";
+import {
+  select,
+  pluck,
+  memoize,
+  combineSelectors,
+  patch,
+  getOrDefault,
+  taggedEnum,
+  createStore,
+} from "../../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -64,18 +73,20 @@ describe("memoize()", () => {
 
   it("should handle different inputs", () => {
     let callCount = 0;
-    const memoized = memoize((n: number) => {
+    const memoized = memoize((n: { value: number }) => {
       callCount++;
-      return n * n;
+      return n.value * n.value;
     });
 
-    expect(memoized(2)).toBe(4);
+    const input1 = { value: 2 };
+    expect(memoized(input1)).toBe(4);
     expect(callCount).toBe(1);
 
-    expect(memoized(2)).toBe(4);
+    expect(memoized(input1)).toBe(4);
     expect(callCount).toBe(1);
 
-    expect(memoized(3)).toBe(9);
+    const input2 = { value: 3 };
+    expect(memoized(input2)).toBe(9);
     expect(callCount).toBe(2);
   });
 });
@@ -111,16 +122,114 @@ describe("patch()", () => {
     const base = { value: 0, name: "test", active: true };
     const patched = patch(base)({ value: 5 });
 
-    expect(patched.value).toBe(5);
-    expect(patched.name).toBe("test");
-    expect(patched.active).toBe(true);
-    expect(patched).not.toBe(base);
+    expect(patched.value.value).toBe(5);
+    expect(patched.value.name).toBe("test");
+    expect(patched.value.active).toBe(true);
+    expect(patched.value).not.toBe(base);
   });
 
   it("should handle partial updates", () => {
     const base = { x: 1, y: 2, z: 3 };
     const patched = patch(base)({ y: 20 });
 
-    expect(patched).toEqual({ x: 1, y: 20, z: 3 });
+    expect(patched.value).toEqual({ x: 1, y: 20, z: 3 });
+  });
+
+  it("should support chained updates", () => {
+    const base = { x: 1, y: 2, z: 3 };
+
+    const result1 = patch(base)({ x: 10 });
+    const result2 = result1({ y: 20 });
+
+    expect(result2.value).toEqual({ x: 10, y: 20, z: 3 });
+  });
+});
+
+describe("getOrDefault()", () => {
+  it("should provide default value for undefined results", () => {
+    const getter = (input: { value?: number }) => input.value;
+
+    const withDefault = getOrDefault(0);
+    expect(withDefault(getter({ value: 5 }))).toBe(5);
+    expect(withDefault(getter({ value: undefined }))).toBe(0);
+    expect(withDefault(getter({}))).toBe(0);
+  });
+
+  it("should work with different default types", () => {
+    const getter = (input: { name?: string }) => input.name;
+
+    const withDefault = getOrDefault("Unknown");
+    expect(withDefault(getter({ name: "Alice" }))).toBe("Alice");
+    expect(withDefault(getter({}))).toBe("Unknown");
+  });
+});
+
+describe("Complete Selector Example", () => {
+  it("should work with store selectors", () => {
+    const UserState = taggedEnum({
+      Idle: { user: null },
+      Loading: {},
+      Ready: { user: { name: "", email: "", age: 0 } },
+      Error: { message: "" },
+    });
+
+    const store = createStore(
+      UserState.Ready({
+        user: { name: "Red", email: "red@test.com", age: 25 },
+      }),
+      UserState
+    );
+
+    const userName = select((store.stateValue as { user: { name: string } }).user, "name");
+    expect(userName).toBe("Red");
+
+    const getUserName = pluck("user.name");
+    const readyState = store.stateValue as { user: { name: string } };
+    const name = getUserName(readyState);
+    expect(name).toBe("Red");
+
+    let callCount = 0;
+    const computeScore = memoize((user: { age: number }) => {
+      callCount++;
+      return user.age * 10;
+    });
+
+    const userForMemo = { age: 25 };
+    expect(computeScore(userForMemo)).toBe(250);
+    expect(callCount).toBe(1);
+    expect(computeScore(userForMemo)).toBe(250);
+    expect(callCount).toBe(1);
+
+    const getUserInfo = combineSelectors(
+      (s: { user: { name: string; age: number } }) => s.user.name,
+      (s: { user: { age: number } }) => s.user.age
+    );
+
+    const [userNameResult, userAge] = getUserInfo(readyState);
+    expect(userNameResult).toBe("Red");
+    expect(userAge).toBe(25);
+
+    const updateUser = patch(
+      (store.stateValue as { user: { name: string; email: string; age: number } }).user
+    )({ age: 26 });
+    expect(updateUser.value.age).toBe(26);
+    expect(updateUser.value.name).toBe("Red");
+  });
+
+  it("should handle derived state patterns", () => {
+    const getFullName = (user: { first: string; last: string }) => `${user.first} ${user.last}`;
+
+    const user = { first: "John", last: "Doe" };
+    expect(getFullName(user)).toBe("John Doe");
+  });
+
+  it("should handle conditional selection", () => {
+    const getDisplayName = (user: { displayName?: string; username: string }) => {
+      const display = select(user, "displayName");
+      return display ?? user.username;
+    };
+
+    expect(getDisplayName({ displayName: "JD", username: "john" })).toBe("JD");
+    expect(getDisplayName({ username: "john" })).toBe("john");
   });
 });

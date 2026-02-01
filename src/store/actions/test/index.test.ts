@@ -219,7 +219,7 @@ describe("createAsyncAction", () => {
 
     try {
       await store.dispatch("tagix/action/FailingAPI", {});
-    } catch {}
+    } catch { }
 
     expect(store.stateValue._tag).toBe("Error");
     expect((store.stateValue as { code: number }).code).toBe(500);
@@ -530,6 +530,57 @@ describe("createAsyncAction", () => {
     } catch (e) {
       console.log("Delete post test skipped due to network error:", (e as Error).message);
     }
+  });
+
+  it("should return Promise from dispatch", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "DispatchReturn",
+    });
+
+    const fetchData = createAsyncAction("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => "data")
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 10 }))
+      .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
+
+    store.register("FetchData", fetchData);
+
+    const result = store.dispatch("tagix/action/FetchData", {});
+    expect(result).toBeInstanceOf(Promise);
+    await result;
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+
+  it("should catch errors in onError and not throw", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "ErrorCatch",
+    });
+
+    const riskyFetch = createAsyncAction("RiskyFetch")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => {
+        throw new Error("Request failed");
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
+      .onError((s, error) => ({
+        ...s,
+        _tag: "Error" as const,
+        message: error.message,
+        code: 500,
+      }));
+
+    store.register("RiskyFetch", riskyFetch);
+
+    let caughtError = false;
+    try {
+      await store.dispatch("tagix/action/RiskyFetch", {});
+    } catch {
+      caughtError = true;
+    }
+
+    expect(caughtError).toBe(false);
+    expect(store.stateValue._tag).toBe("Error");
+    expect((store.stateValue as { message: string }).message).toBe("Request failed");
   });
 
   it("should fetch todos from public API", async () => {
