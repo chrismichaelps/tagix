@@ -281,7 +281,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
       this.state = action.onError(this.state, result.left);
       this.recordError(result.left);
       this.notifySubscribers();
-      throw result.left;
+      return;
     }
 
     this.state = action.onSuccess(this.state, result.right);
