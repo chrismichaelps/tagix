@@ -23,6 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { some, none, type Option } from "../../lib/Data/option";
+import { isNullish } from "../../lib/Data/predicate";
 
 interface Patchable<T> extends Function {
   (updates: Partial<T>): Patchable<T>;
@@ -90,17 +91,19 @@ export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K
  * @remarks Returns undefined if any part of the path is null/undefined.
  */
 export function pluck<T extends object, K extends string>(key: K): (obj: T) => unknown {
+  if (!key.includes(".")) {
+    return (obj: T): unknown => (obj as Record<string, unknown>)[key];
+  }
+
+  const keys = key.split(".");
+
   return (obj: T): unknown => {
-    if (key.includes(".")) {
-      const keys = key.split(".");
-      let result: unknown = obj;
-      for (const k of keys) {
-        if (result === null || result === undefined) return undefined;
-        result = (result as Record<string, unknown>)[k];
-      }
-      return result;
+    let current: unknown = obj;
+    for (const k of keys) {
+      if (isNullish(current)) return undefined;
+      current = (current as Record<string, unknown>)[k];
     }
-    return (obj as Record<string, unknown>)[key];
+    return current;
   };
 }
 
