@@ -466,8 +466,16 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @typeParam K - The property key type.
    * @param key - The property key to access.
    * @returns The property value, or undefined if not present.
+   *
+   * @remarks
+   * For properties that exist on all variants, the return type is correctly inferred.
+   * For properties that may not exist on all variants, returns `unknown | undefined`.
    */
-  select<K extends keyof S>(key: K): S[K] | undefined {
-    return key in this.state ? this.state[key] : undefined;
+  select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined {
+    return key in this.state
+      ? ((this.state as Record<string, unknown>)[key] as K extends keyof S
+          ? S[K]
+          : unknown | undefined)
+      : (undefined as K extends keyof S ? S[K] : unknown | undefined);
   }
 }
