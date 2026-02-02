@@ -91,10 +91,13 @@ export interface MiddlewareContext<S extends { readonly _tag: string }> {
  * Middleware function that wraps action dispatch.
  * @param context - Store context for reading state or dispatching nested actions.
  * @returns A function that wraps the next middleware/handler.
+ * @remarks The returned function should return `true` (or void) to proceed with action execution, or `false` to block.
  */
 export type Middleware<S extends { readonly _tag: string }> = (
   context: MiddlewareContext<S>
-) => (next: (action: Action | AsyncAction) => void) => (action: Action | AsyncAction) => void;
+) => (
+  next: (action: Action | AsyncAction) => boolean
+) => (action: Action | AsyncAction) => boolean | void;
 
 /** Callback invoked on state changes. @param state - The new state. */
 export type SubscribeCallback<S extends { readonly _tag: string }> = (state: S) => void;

@@ -243,3 +243,124 @@ describe("createLoggerMiddleware", () => {
     expect(store.name).toBe("ActionTransformerTest");
   });
 });
+
+describe("Middleware Control Flow", () => {
+  it("should allow middlewares to block async actions", async () => {
+    let effectWasCalled = false;
+    let middlewareBlocked = false;
+
+    const blockingMiddleware = () => (next: (action: any) => boolean) => (action: any) => {
+      if (action.type.includes("Blocked")) {
+        middlewareBlocked = true;
+        return false;
+      }
+      return next(action);
+    };
+
+    const TestState = taggedEnum({
+      Idle: { value: 0 },
+      Loading: { value: 0 },
+      Ready: { value: 0 },
+    });
+
+    type TestStateType = typeof TestState.State;
+
+    const store = createStore<TestStateType>(TestState.Idle({ value: 0 }), TestState, {
+      middlewares: [blockingMiddleware as any],
+    });
+
+    const blockedAsync = createAsyncAction<void, TestStateType, void>("BlockedAsync")
+      .state((s) => TestState.Loading({ value: 99 }))
+      .effect(async () => {
+        effectWasCalled = true;
+      })
+      .onSuccess((s) => s)
+      .onError((s) => s);
+
+    store.register("BlockedAsync", blockedAsync);
+
+    await store.dispatch("tagix/action/BlockedAsync", {});
+
+    expect(middlewareBlocked).toBe(true);
+    expect(effectWasCalled).toBe(false);
+    expect(store.stateValue._tag).toBe("Idle");
+  });
+
+  it("should allow middleware to modify action's state function", async () => {
+    let stateModifiedByMiddleware = false;
+
+    const modifyStateMiddleware = () => (next: (action: any) => boolean) => (action: any) => {
+      if (action.type.includes("ModifyState")) {
+        const originalState = action.state;
+        action.state = (s: any) => {
+          stateModifiedByMiddleware = true;
+          return { ...originalState(s), _tag: "Ready" as const };
+        };
+      }
+      return next(action);
+    };
+
+    const TestState = taggedEnum({
+      Idle: { value: 0 },
+      Loading: { value: 0 },
+      Ready: { value: 0 },
+    });
+
+    type TestStateType = typeof TestState.State;
+
+    const store = createStore<TestStateType>(TestState.Idle({ value: 0 }), TestState, {
+      middlewares: [modifyStateMiddleware as any],
+    });
+
+    const modifyAction = createAsyncAction<void, TestStateType, number>("ModifyState")
+      .state((s) => ({ ...s, _tag: "Loading" as const, value: 10 }))
+      .effect(async () => 42)
+      .onSuccess((s, result) => ({ ...s, value: result }))
+      .onError((s) => s);
+
+    store.register("ModifyState", modifyAction);
+
+    await store.dispatch("tagix/action/ModifyState", {});
+
+    expect(stateModifiedByMiddleware).toBe(true);
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+
+  it("should allow middleware to modify payload before async action executes", async () => {
+    const receivedPayloads: number[] = [];
+
+    const modifyPayloadMiddleware = () => (next: (action: any) => boolean) => (action: any) => {
+      if (action.type.includes("Multiply")) {
+        action.payload = action.payload * 2;
+      }
+      return next(action);
+    };
+
+    const TestState = taggedEnum({
+      Idle: { value: 0 },
+      Ready: { value: 0 },
+    });
+
+    type TestStateType = typeof TestState.State;
+
+    const store = createStore<TestStateType>(TestState.Idle({ value: 0 }), TestState, {
+      middlewares: [modifyPayloadMiddleware as any],
+    });
+
+    const multiplyAction = createAsyncAction<number, TestStateType, number>("Multiply")
+      .state((s) => s)
+      .effect(async (payload) => {
+        receivedPayloads.push(payload);
+        return payload;
+      })
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready" as const, value: result }))
+      .onError((s) => s);
+
+    store.register("Multiply", multiplyAction);
+
+    await store.dispatch("tagix/action/Multiply", 5);
+
+    expect(receivedPayloads).toEqual([10]);
+    expect((store.stateValue as Extract<TestStateType, { value: number }>).value).toBe(10);
+  });
+});

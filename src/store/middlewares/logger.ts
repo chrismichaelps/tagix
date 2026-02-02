@@ -73,8 +73,8 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
   return function loggerMiddleware<S extends { readonly _tag: string }>(
     _context: MiddlewareContext<S>
   ) {
-    return function logger(next: (action: Action | AsyncAction) => void) {
-      return function loggerExecutor(action: Action | AsyncAction) {
+    return function logger(next: (action: Action | AsyncAction) => boolean) {
+      return function loggerExecutor(action: Action | AsyncAction): boolean | void {
         const startTime = Date.now();
 
         if (predicate && !predicate(action)) {
@@ -109,7 +109,7 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
           transformedAction
         );
 
-        next(action);
+        const shouldProceed = next(action);
 
         const endTime = Date.now();
         const took = endTime - startTime;
@@ -121,6 +121,8 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
         if (isNotNullish(console.groupEnd)) {
           console.groupEnd();
         }
+
+        return shouldProceed;
       };
     };
   };

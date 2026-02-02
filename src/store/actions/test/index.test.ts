@@ -725,3 +725,121 @@ describe("createAsyncAction - Retry Logic", () => {
     }
   });
 });
+
+describe("Async Action - State Freshness", () => {
+  it("should preserve intermediate state updates during async execution", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({
+        ...s,
+        value: (s as Extract<CounterStateType, { value: number }>).value + p.amount,
+      }));
+
+    const asyncAction = createAsyncAction<void, CounterStateType, number>("AsyncAction")
+      .state((s) => ({
+        ...s,
+        _tag: "Loading" as const,
+        value: (s as Extract<CounterStateType, { value: number }>).value,
+      }))
+      .effect(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return 10;
+      })
+      .onSuccess((s, val) => ({
+        ...s,
+        _tag: "Ready" as const,
+        value: (s as Extract<CounterStateType, { value: number }>).value + val,
+      }))
+      .onError((s) => s);
+
+    store.register("Increment", increment);
+    store.register("AsyncAction", asyncAction);
+
+    const asyncPromise = store.dispatch("tagix/action/AsyncAction", {});
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    store.dispatch("tagix/action/Increment", { amount: 1 });
+
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(1);
+
+    await asyncPromise;
+
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(11);
+  });
+
+  it("onSuccess should receive fresh state when concurrent updates occur", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const setValue = createAction<{ value: number }, CounterStateType>("SetValue")
+      .withPayload({ value: 0 })
+      .withState((s, p) => ({ ...s, value: p.value }));
+
+    store.register("SetValue", setValue);
+
+    let receivedStateValue = 0;
+
+    const fetchData = createAsyncAction<void, CounterStateType, number>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" as const }))
+      .effect(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return 100;
+      })
+      .onSuccess((s, result) => {
+        receivedStateValue = (s as Extract<CounterStateType, { value: number }>).value;
+        expect(s._tag).toBe("Loading");
+        expect((s as Extract<CounterStateType, { value: number }>).value).toBe(5);
+        return {
+          ...s,
+          _tag: "Ready" as const,
+          value: (s as Extract<CounterStateType, { value: number }>).value + result,
+        };
+      })
+      .onError((s) => s);
+
+    store.register("FetchData", fetchData);
+
+    const promise = store.dispatch("tagix/action/FetchData", {});
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    store.dispatch("tagix/action/SetValue", { value: 5 });
+
+    await promise;
+
+    expect(receivedStateValue).toBe(5);
+    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(105);
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+
+  it("should catch errors in onError and not throw", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "ErrorCatch",
+    });
+
+    const riskyFetch = createAsyncAction<undefined, CounterStateType, unknown>("RiskyFetch")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => {
+        throw new Error("Request failed");
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
+      .onError((s, error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        return { ...s, _tag: "Error" as const, message: err.message, code: 500 };
+      });
+
+    store.register("RiskyFetch", riskyFetch);
+
+    let caughtError = false;
+    try {
+      await store.dispatch("tagix/action/RiskyFetch", {});
+    } catch {
+      caughtError = true;
+    }
+
+    expect(caughtError).toBe(false);
+    expect(store.stateValue._tag).toBe("Error");
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Error" }>;
+    expect(state.message).toBe("Request failed");
+  });
+});

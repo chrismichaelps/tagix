@@ -62,7 +62,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly subscribers: Set<SubscribeCallback<S>> = new Set();
   private readonly config: Required<StoreConfig<S>>;
   private readonly _validStateTags: Set<string>;
-  private readonly _dispatchMiddleware: (action: Action | AsyncAction) => void;
+  private readonly _dispatchMiddleware: (action: Action | AsyncAction) => boolean;
   private _currentPayload: unknown = undefined;
 
   constructor(
@@ -93,12 +93,18 @@ export class TagixStore<S extends { readonly _tag: string }> {
     };
 
     const middlewares = this.config.middlewares || [];
-    let next: (action: Action | AsyncAction) => void = (action) => this._executeAction(action);
+    let next: (action: Action | AsyncAction) => boolean = (_action) => {
+      this._executeAction(_action);
+      return true;
+    };
 
     for (const middleware of middlewares.reverse()) {
       const mw = middleware(context);
       const currentNext = next;
-      next = (action) => mw(currentNext)(action);
+      next = (action) => {
+        const result = mw(currentNext)(action);
+        return result !== false;
+      };
     }
 
     this._dispatchMiddleware = next;
@@ -273,9 +279,20 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     if ("effect" in action) {
       const asyncAction = action as unknown as AsyncAction<TPayload, S, unknown>;
+      (asyncAction as unknown as Record<string, unknown>).payload = _payload;
       this._currentPayload = _payload;
-      this._dispatchMiddleware(asyncAction as unknown as Action | AsyncAction);
-      return this.handleAsyncAction(asyncAction, _payload);
+      const shouldProceed = this._dispatchMiddleware(
+        asyncAction as unknown as Action | AsyncAction
+      );
+      if (shouldProceed === false) {
+        return;
+      }
+      const actionPayload = (asyncAction as unknown as Action).payload;
+      const isValidPayload =
+        actionPayload !== undefined &&
+        !(typeof actionPayload === "number" && isNaN(actionPayload as number));
+      const payload = isValidPayload ? actionPayload : _payload;
+      return this.handleAsyncAction(asyncAction, payload as TPayload);
     }
 
     const syncAction = action as unknown as Action<TPayload, S>;
@@ -325,15 +342,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
     const maxRetries = this.config.maxRetries;
     let attempt = 0;
     let lastError: unknown;
-    let currentState = this.state;
+    const baselineState = this.state;
+    let pendingState = action.state(baselineState);
+
+    this.state = pendingState;
+    this.notifySubscribers();
 
     while (attempt <= maxRetries) {
-      currentState = action.state(currentState);
-      if (attempt === 0) {
-        this.state = currentState;
-        this.notifySubscribers();
-      }
-
       const result = await tryCatchAsync(
         () => action.effect(payload),
         (err) => err
@@ -341,7 +356,14 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
       const done = match(result, {
         onRight: (value) => {
-          this.state = action.onSuccess(currentState, value);
+          const freshState = this.state;
+          const mergedState = this._mergeAsyncState(
+            freshState,
+            pendingState,
+            value,
+            action.onSuccess
+          );
+          this.state = mergedState;
           this.notifySubscribers();
           return true;
         },
@@ -349,7 +371,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
           lastError = error;
           attempt++;
           if (attempt <= maxRetries) {
-            currentState = action.onError(currentState, error);
+            const freshState = this.state;
+            pendingState = action.onError(freshState, error);
+            this.state = pendingState;
+            this.notifySubscribers();
           }
           return false;
         },
@@ -358,9 +383,40 @@ export class TagixStore<S extends { readonly _tag: string }> {
       if (done) return;
     }
 
-    this.state = action.onError(currentState, lastError!);
+    const freshState = this.state;
+    const mergedState = this._mergeAsyncState(
+      freshState,
+      pendingState,
+      lastError as unknown,
+      action.onError
+    );
+    this.state = mergedState;
     this.recordError(lastError);
     this.notifySubscribers();
+  }
+
+  private _mergeAsyncState(
+    freshState: S,
+    pendingState: S,
+    handlerInput: unknown,
+    handler: (state: S, input: unknown) => S
+  ): S {
+    if (freshState._tag !== pendingState._tag) {
+      return handler(freshState, handlerInput);
+    }
+
+    const handlerResult = handler(freshState, handlerInput);
+
+    const merged: Record<string, unknown> = { ...freshState };
+    for (const key of Object.keys(handlerResult)) {
+      if (key === "_tag") {
+        merged._tag = handlerResult._tag;
+      } else {
+        merged[key] = (handlerResult as Record<string, unknown>)[key];
+      }
+    }
+
+    return merged as S;
   }
 
   private recordError(error: unknown): void {
