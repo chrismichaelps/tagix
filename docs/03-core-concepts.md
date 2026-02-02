@@ -11,7 +11,7 @@ keywords:
 sidebar:
   position: 3
   label: Core Concepts
-  - icon: book
+  icon: book
 tags:
   - fundamentals
   - concepts
