@@ -405,10 +405,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
   /**
    * Subscribes to state changes.
-   * @param callback - Function called whenever state changes.
+   * @param callback - Function called immediately with current state, then on each change.
    * @returns Unsubscribe function to remove the callback.
    */
   subscribe(callback: SubscribeCallback<S>): () => void {
+    callback(this.state);
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
