@@ -6,6 +6,7 @@ import {
   createLoggerMiddleware,
   taggedEnum,
 } from "../../index";
+import { getValue } from "../../test/utils";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -54,13 +55,16 @@ describe("createLoggerMiddleware", () => {
 
     const increment = createAction<{ amount: number }, CounterStateType>("Increment")
       .withPayload({ amount: 1 })
-      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+      .withState((s, p) => {
+        const state = s as Extract<CounterStateType, { value: number }>;
+        return { ...s, value: state.value + p.amount };
+      });
 
     store.register("Increment", increment);
     store.dispatch("tagix/action/Increment", { amount: 5 });
 
     expect(store.stateValue._tag).toBe("Idle");
-    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(1);
+    expect(getValue(store.stateValue)).toBe(5);
   });
 
   it("should support custom predicate", () => {
@@ -80,7 +84,7 @@ describe("createLoggerMiddleware", () => {
     const logger = createLoggerMiddleware?.({
       stateTransformer: (state) => ({
         transformed: true,
-        value: (state as Extract<CounterStateType, { value: number }>).value,
+        value: getValue(state as CounterStateType),
       }),
     });
 
@@ -89,7 +93,7 @@ describe("createLoggerMiddleware", () => {
       middlewares: logger ? [logger] : [],
     });
 
-    expect((store.stateValue as Extract<CounterStateType, { value: number }>).value).toBe(10);
+    expect(getValue(store.stateValue)).toBe(10);
   });
 
   it("should support actionTransformer option", () => {
@@ -115,7 +119,7 @@ describe("createLoggerMiddleware", () => {
 
     type AppStateType = typeof AppState.State;
 
-    const store = createStore(AppState.Idle(), AppState, {
+    const store = createStore(AppState.Idle({}), AppState, {
       name: "AppAsync",
       middlewares: [createLoggerMiddleware({ collapsed: true, duration: true })],
     });
