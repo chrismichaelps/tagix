@@ -8,6 +8,8 @@ import {
   isInState,
   hasTag,
   taggedEnum,
+  asVariant,
+  type TaggedEnum,
 } from "../../index";
 
 const CounterState = taggedEnum({
@@ -138,25 +140,26 @@ describe("hasTag()", () => {
 describe("Complete Guard Example", () => {
   it("should work with all guard functions together", () => {
     const AppState = taggedEnum({
-      Idle: { data: null },
+      Idle: { data: null as null },
       Loading: { progress: 0 },
-      Success: { data: [] },
+      Success: { data: [] as unknown[] },
       Error: { message: "" },
     });
 
-    type AppStateType = typeof AppState.State;
+    type AppStateType = TaggedEnum<{
+      Idle: { data: null };
+      Loading: { progress: number };
+      Success: { data: unknown[] };
+      Error: { message: string };
+    }>;
 
-    const store = createStore(AppState.Loading({ progress: 50 }), AppState, {
+    const store = createStore<AppStateType>(AppState.Loading({ progress: 50 }), AppState, {
       name: "App",
     });
 
-    if (when("Loading")(store.stateValue)) {
-      const progress = withState(
-        store.stateValue,
-        "Loading",
-        (s) => (s as Extract<AppStateType, { _tag: "Loading" }>).progress
-      );
-      expect(progress).toBe(50);
+    if (when<AppStateType, "Loading">("Loading")(store.stateValue)) {
+      const loadingState = asVariant<AppStateType, "Loading">(store.stateValue, "Loading");
+      expect(loadingState?.progress).toBe(50);
     }
 
     const progressHandler = on("Loading")(
