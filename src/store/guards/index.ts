@@ -166,9 +166,9 @@ export function when<T extends { readonly _tag: string }, K extends T["_tag"]>(
 export function withState<S extends { readonly _tag: string }, K extends S["_tag"], R>(
   state: S,
   tag: K,
-  fn: (s: Extract<S, { _tag: typeof tag }>) => R
+  fn: (s: Extract<S, { _tag: K }>) => R
 ): R | undefined {
-  return state._tag === tag ? fn(state as Extract<S, { _tag: typeof tag }>) : undefined;
+  return state._tag === tag ? fn(state as Extract<S, { _tag: K }>) : undefined;
 }
 
 /**
