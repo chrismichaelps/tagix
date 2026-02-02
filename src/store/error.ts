@@ -37,12 +37,6 @@ export const StateTransitionError = TaggedError(ERROR_NAMES.STATE_TRANSITION);
 export const MissingHandlerError = TaggedError(ERROR_NAMES.MISSING_HANDLER);
 
 /**
- * Thrown when attempting to restore a snapshot that does not exist.
- * @remarks The error payload includes available snapshot names.
- */
-export const SnapshotNotFoundError = TaggedError(ERROR_NAMES.SNAPSHOT_NOT_FOUND);
-
-/**
  * Thrown when dispatching an action type that has not been registered.
  */
 export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
@@ -52,12 +46,6 @@ export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
  * @remarks Use `validatePayload` guard to trigger this error.
  */
 export const InvalidPayloadError = TaggedError(ERROR_NAMES.INVALID_PAYLOAD);
-
-/**
- * Thrown when undo/redo history exceeds the configured maximum.
- * @remarks Configured via `maxUndoHistory` in store config.
- */
-export const MaxHistoryExceededError = TaggedError(ERROR_NAMES.MAX_HISTORY_EXCEEDED);
 
 /**
  * Thrown when pattern matching is non-exhaustive.
@@ -85,10 +73,8 @@ export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
 
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
-export type SnapshotNotFoundError = InstanceType<typeof SnapshotNotFoundError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
 export type InvalidPayloadError = InstanceType<typeof InvalidPayloadError>;
-export type MaxHistoryExceededError = InstanceType<typeof MaxHistoryExceededError>;
 export type NonExhaustiveMatchError = InstanceType<typeof NonExhaustiveMatchError>;
 export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
 export type PayloadValidationError = InstanceType<typeof PayloadValidationError>;
@@ -101,10 +87,8 @@ export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
 export type TagixError =
   | StateTransitionError
   | MissingHandlerError
-  | SnapshotNotFoundError
   | ActionNotFoundError
   | InvalidPayloadError
-  | MaxHistoryExceededError
   | NonExhaustiveMatchError
   | RequiredPayloadError
   | PayloadValidationError

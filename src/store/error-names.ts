@@ -29,10 +29,8 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 export const ERROR_NAMES = {
   STATE_TRANSITION: "StateTransitionError",
   MISSING_HANDLER: "MissingHandlerError",
-  SNAPSHOT_NOT_FOUND: "SnapshotNotFoundError",
   ACTION_NOT_FOUND: "ActionNotFoundError",
   INVALID_PAYLOAD: "InvalidPayloadError",
-  MAX_HISTORY_EXCEEDED: "MaxHistoryExceededError",
   NON_EXHAUSTIVE_MATCH: "NonExhaustiveMatchError",
   REQUIRED_PAYLOAD: "RequiredPayloadError",
   PAYLOAD_VALIDATION: "PayloadValidationError",
@@ -51,10 +49,8 @@ export type ErrorName = (typeof ERROR_NAMES)[keyof typeof ERROR_NAMES];
 export const ERROR_CODES = {
   STATE_TRANSITION: 1001,
   MISSING_HANDLER: 1002,
-  SNAPSHOT_NOT_FOUND: 1003,
   ACTION_NOT_FOUND: 1004,
   INVALID_PAYLOAD: 1005,
-  MAX_HISTORY_EXCEEDED: 1006,
   NON_EXHAUSTIVE_MATCH: 1007,
   REQUIRED_PAYLOAD: 1008,
   PAYLOAD_VALIDATION: 1009,
@@ -129,8 +125,6 @@ export const ERROR_CATEGORIES = {
     ERROR_CODES.REQUIRED_PAYLOAD,
     ERROR_CODES.PAYLOAD_VALIDATION,
   ] as const,
-  HISTORY: [ERROR_CODES.MAX_HISTORY_EXCEEDED] as const,
-  SNAPSHOT: [ERROR_CODES.SNAPSHOT_NOT_FOUND] as const,
   MATCH: [ERROR_CODES.NON_EXHAUSTIVE_MATCH] as const,
 } as const;
 
@@ -143,8 +137,6 @@ const codeToCategoryMap: Map<number, ErrorCategory> = new Map([
   ...ERROR_CATEGORIES.STATE.map((c) => [c, "STATE"] as [number, ErrorCategory]),
   ...ERROR_CATEGORIES.ACTION.map((c) => [c, "ACTION"] as [number, ErrorCategory]),
   ...ERROR_CATEGORIES.PAYLOAD.map((c) => [c, "PAYLOAD"] as [number, ErrorCategory]),
-  ...ERROR_CATEGORIES.HISTORY.map((c) => [c, "HISTORY"] as [number, ErrorCategory]),
-  ...ERROR_CATEGORIES.SNAPSHOT.map((c) => [c, "SNAPSHOT"] as [number, ErrorCategory]),
   ...ERROR_CATEGORIES.MATCH.map((c) => [c, "MATCH"] as [number, ErrorCategory]),
 ]);
 
@@ -152,7 +144,6 @@ const recoverableCategoriesSet: ReadonlySet<ErrorCategory> = new Set([
   "STATE",
   "ACTION",
   "PAYLOAD",
-  "SNAPSHOT",
 ]);
 
 /**
@@ -167,7 +158,7 @@ export const getErrorCategory = (code: number): ErrorCategory | undefined => {
 /**
  * Checks if an error code represents a recoverable error.
  * @param code - The error code to check.
- * @returns True if the error is recoverable (STATE, ACTION, PAYLOAD, or SNAPSHOT category).
+ * @returns True if the error is recoverable (STATE, ACTION, or PAYLOAD category).
  */
 export const isRecoverableError = (code: number): boolean => {
   const category = codeToCategoryMap.get(code);
