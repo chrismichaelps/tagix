@@ -65,25 +65,11 @@ export interface DevToolsConfig<S> {
   readonly stateSanitizer?: (state: S) => S;
 }
 
-export interface SnapshotConfig<S> {
-  readonly enabled?: boolean;
-  readonly maxSnapshots?: number;
-  readonly autoSnapshot?: (action: ActionDescriptor) => boolean;
-}
-
-export interface UndoRedoConfig<S> {
-  readonly enabled?: boolean;
-  readonly maxHistory?: number;
-  readonly trackActions?: (action: ActionDescriptor) => boolean;
-}
-
 export interface StoreConfig<S> {
   readonly name?: string;
   readonly persistence?: PersistenceConfig<S>;
   readonly errors?: ErrorsConfig;
   readonly devTools?: DevToolsConfig<S>;
-  readonly snapshot?: SnapshotConfig<S>;
-  readonly undoRedo?: UndoRedoConfig<S>;
   readonly strict?: boolean;
 }
 
