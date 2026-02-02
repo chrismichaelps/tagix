@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createStore, createAction, taggedEnum } from "../../index";
 import { getValue } from "../../test/utils";
+import { isNotNullish } from "../../../lib/Data/predicate";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -38,7 +39,9 @@ describe("Store Basic", () => {
   });
 
   it("should support middlewares configuration", () => {
-    const loggerMiddleware = createStoreLoggerMiddleware?.({});
+    const loggerMiddleware = isNotNullish(createStoreLoggerMiddleware)
+      ? createStoreLoggerMiddleware({})
+      : undefined;
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "MiddlewareTest",
       middlewares: loggerMiddleware ? [loggerMiddleware] : [],
