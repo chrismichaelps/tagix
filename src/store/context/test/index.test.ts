@@ -608,7 +608,7 @@ describe("TagixContext", () => {
   });
 
   describe("complete example", () => {
-    it("should work with all features combined", () => {
+    it("should work with all features combined", async () => {
       const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
         name: "Counter",
       });
@@ -663,7 +663,7 @@ describe("TagixContext", () => {
       expect(unwrap(computed)).toEqual({ doubled: 20, squared: 100 });
 
       const { promise, unsubscribe } = context.selectAsync((state) => getValue(state));
-      expect(promise).resolves.toBe(10);
+      await expect(promise).resolves.toBe(10);
       unsubscribe();
 
       const fork = context.fork();
