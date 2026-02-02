@@ -1133,3 +1133,249 @@ describe("Dispatch API", () => {
     expect(state.data.value).toBe(42);
   });
 });
+
+describe("Payload Flow", () => {
+  it("should pass payload to action handler", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let receivedPayload: { amount: number } | null = null;
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => {
+        receivedPayload = p;
+        return { ...s, value: s.value + p.amount };
+      });
+
+    store.register("Increment", increment);
+
+    const createIncrement = (payload: { amount: number }) => increment;
+    store.dispatch(createIncrement, { amount: 10 });
+
+    expect(receivedPayload).toEqual({ amount: 10 });
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(10);
+  });
+
+  it("should pass payload to async effect", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let receivedPayload: { userId: number } | null = null;
+
+    const fetchUser = createAsyncAction<{ userId: number }, CounterStateType, string>("FetchUser")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        receivedPayload = p;
+        return `user-${p.userId}`;
+      })
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 100 }))
+      .onError((s) => s);
+
+    store.register("FetchUser", fetchUser);
+
+    const createFetchUser = (payload: { userId: number }) => fetchUser;
+    await store.dispatch(createFetchUser, { userId: 42 });
+
+    expect(receivedPayload).toEqual({ userId: 42 });
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+
+  it("should use payload in API fetch call", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let capturedUrl: string | null = null;
+    let capturedPostId: number | null = null;
+
+    const fetchPost = createAsyncAction<{ postId: number }, CounterStateType, number>("FetchPost")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        capturedUrl = `/api/posts/${p.postId}`;
+        capturedPostId = p.postId;
+        return p.postId;
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data }))
+      .onError((s) => s);
+
+    store.register("FetchPost", fetchPost);
+
+    const createFetchPost = (payload: { postId: number }) => fetchPost;
+    await store.dispatch(createFetchPost, { postId: 123 });
+
+    expect(capturedUrl).toBe("/api/posts/123");
+    expect(capturedPostId).toBe(123);
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(123);
+  });
+
+  it("should pass different payloads to consecutive dispatches", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetchData = createAsyncAction<{ id: number }, CounterStateType, number>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => p.id)
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data }))
+      .onError((s) => s);
+
+    store.register("FetchData", fetchData);
+
+    const createFetchData = (payload: { id: number }) => fetchData;
+
+    await store.dispatch(createFetchData, { id: 1 });
+    let state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(1);
+
+    await store.dispatch(createFetchData, { id: 99 });
+    state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(99);
+
+    await store.dispatch(createFetchData, { id: 42 });
+    state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(42);
+  });
+
+  it("should handle nested object payloads", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    interface UserPayload {
+      user: { id: number; profile: { name: string; email: string } };
+      settings: { theme: string; notifications: boolean };
+    }
+
+    let capturedPayload: UserPayload | null = null;
+
+    const updateUser = createAsyncAction<UserPayload, CounterStateType, number>("UpdateUser")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        capturedPayload = p;
+        return p.user.id;
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data }))
+      .onError((s) => s);
+
+    store.register("UpdateUser", updateUser);
+
+    const createUpdateUser = (payload: UserPayload) => updateUser;
+    await store.dispatch(createUpdateUser, {
+      user: { id: 42, profile: { name: "John", email: "john@example.com" } },
+      settings: { theme: "dark", notifications: true },
+    });
+
+    expect((capturedPayload as UserPayload | null)?.user.id).toBe(42);
+    expect((capturedPayload as UserPayload | null)?.settings?.theme).toBe("dark");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(42);
+  });
+
+  it("should handle array payload in effect", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let capturedPayload: number[] | null = null;
+
+    const processItems = createAsyncAction<number[], CounterStateType, number>("ProcessItems")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        capturedPayload = p;
+        return p.reduce((sum, n) => sum + n, 0);
+      })
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: result }))
+      .onError((s) => s);
+
+    store.register("ProcessItems", processItems);
+
+    const createProcessItems = (payload: number[]) => processItems;
+    await store.dispatch(createProcessItems, [1, 2, 3, 4, 5]);
+
+    expect(capturedPayload).toEqual([1, 2, 3, 4, 5]);
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(15);
+  });
+
+  it("should use payload in API URL construction", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    interface ApiRequest {
+      baseUrl: string;
+      endpoint: string;
+      params: Record<string, string>;
+    }
+
+    let capturedUrl: string | null = null;
+
+    const apiCall = createAsyncAction<ApiRequest, CounterStateType, unknown>("ApiCall")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        const queryString = Object.entries(p.params)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join("&");
+        capturedUrl = `${p.baseUrl}${p.endpoint}?${queryString}`;
+        return {};
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 1 }))
+      .onError((s) => s);
+
+    store.register("ApiCall", apiCall);
+
+    const createApiCall = (payload: ApiRequest) => apiCall;
+    await store.dispatch(createApiCall, {
+      baseUrl: "https://api.example.com",
+      endpoint: "/users",
+      params: { page: "1", limit: "10", sort: "name" },
+    });
+
+    expect(capturedUrl).toBe("https://api.example.com/users?page=1&limit=10&sort=name");
+  });
+
+  it("should handle Date object in payload", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let capturedDate: Date | null = null;
+
+    const scheduleEvent = createAsyncAction<{ eventDate: Date }, CounterStateType, number>(
+      "ScheduleEvent"
+    )
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        capturedDate = p.eventDate;
+        return p.eventDate.getTime();
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data }))
+      .onError((s) => s);
+
+    store.register("ScheduleEvent", scheduleEvent);
+
+    const testDate = new Date("2026-12-25T00:00:00Z");
+    const createScheduleEvent = (payload: { eventDate: Date }) => scheduleEvent;
+    await store.dispatch(createScheduleEvent, { eventDate: testDate });
+
+    expect((capturedDate as Date | null)?.toISOString()).toBe("2026-12-25T00:00:00.000Z");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(testDate.getTime());
+  });
+
+  it("should handle payload with multiple properties", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let capturedPayload: { userId: number; includePosts: boolean; page: number } | null = null;
+
+    const searchUsers = createAsyncAction<
+      { userId: number; includePosts: boolean; page: number },
+      CounterStateType,
+      number[]
+    >("SearchUsers")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        capturedPayload = p;
+        return [p.userId, p.page];
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data.length }))
+      .onError((s) => s);
+
+    store.register("SearchUsers", searchUsers);
+
+    const createSearchUsers = (payload: { userId: number; includePosts: boolean; page: number }) =>
+      searchUsers;
+    await store.dispatch(createSearchUsers, { userId: 1, includePosts: true, page: 5 });
+
+    expect(capturedPayload).toEqual({ userId: 1, includePosts: true, page: 5 });
+  });
+});
