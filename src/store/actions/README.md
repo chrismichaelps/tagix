@@ -208,6 +208,28 @@ const fetchWithRetry = createAsyncAction("FetchWithRetry")
   .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
 ```
 
+## State Freshness
+
+`onSuccess` and `onError` receive the current (fresh) state, not the pending state. This means concurrent updates made during async execution are preserved:
+
+```ts
+const asyncAction = createAsyncAction("AsyncAction")
+  .state((s) => ({ ...s, _tag: "Loading", value: s.value }))
+  .effect(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return 10;
+  })
+  .onSuccess((s, result) => {
+    // s is the current state after any concurrent updates
+    return { ...s, _tag: "Ready", value: s.value + result };
+  });
+
+store.dispatch("tagix/action/AsyncAction", {});
+store.dispatch("tagix/action/Increment", { amount: 5 });
+// onSuccess receives state with value=5 (not 0), result=10
+// Returns Ready { value: 15 }
+```
+
 ## Concurrent Actions
 
 Multiple async actions can run concurrently:

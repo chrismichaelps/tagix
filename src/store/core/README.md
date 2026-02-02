@@ -146,6 +146,48 @@ interface StoreConfig<S> {
 }
 ```
 
+## Middleware Control Flow
+
+The store supports middleware that can intercept, modify, and block actions.
+
+### Middleware Type
+
+```ts
+type Middleware<S> = (
+  context: MiddlewareContext<S>
+) => (
+  next: (action: Action | AsyncAction) => boolean
+) => (action: Action | AsyncAction) => boolean | void;
+```
+
+### Blocking Actions
+
+Middlewares can return `false` to block action execution:
+
+```ts
+const blockingMiddleware = () => (next) => (action) => {
+  if (action.type.includes("Blocked")) {
+    return false; // Block the action
+  }
+  return next(action);
+};
+
+const store = createStore(initialState, {
+  middlewares: [blockingMiddleware],
+});
+```
+
+For async actions, returning `false` prevents the effect from executing:
+
+```ts
+const rateLimitMiddleware = () => (next) => (action) => {
+  if (isRateLimited(action.type)) {
+    return false; // Skip the action
+  }
+  return next(action);
+};
+```
+
 ## Example: Complete Store
 
 ```ts

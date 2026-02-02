@@ -229,6 +229,63 @@ const store = createStore(initialState, {
 });
 ```
 
+## Middleware Control Flow
+
+Middlewares can modify actions, block execution, and pass control through the chain.
+
+### Blocking Actions
+
+Return `false` from a middleware to block an action:
+
+```ts
+const authMiddleware = () => (next) => (action) => {
+  if (action.type.includes("Private") && !isAuthenticated()) {
+    console.warn("Action blocked: User not authenticated");
+    return false; // Block the action
+  }
+  return next(action);
+};
+
+const store = createStore(initialState, {
+  middlewares: [authMiddleware],
+});
+```
+
+### Modifying Actions
+
+Modify action properties before they execute:
+
+```ts
+const loggingMiddleware = () => (next) => (action) => {
+  if (action.type.includes("API")) {
+    // Add timestamp to payload
+    action.payload = { ...action.payload, timestamp: Date.now() };
+  }
+  return next(action);
+};
+```
+
+### Payload Modification for Async Actions
+
+Middleware can modify the payload before an async action's effect runs:
+
+```ts
+const transformPayload = () => (next) => (action) => {
+  if (action.type.includes("Multiply")) {
+    action.payload = action.payload * 2;
+  }
+  return next(action);
+};
+
+const multiplyAction = createAsyncAction("Multiply").effect(async (payload) => {
+  // Receives modified payload
+  return payload * 10;
+});
+
+store.dispatch("tagix/action/Multiply", 5);
+// effect receives 10 (5 * 2), returns 100
+```
+
 ## Related
 
 - [createStore](../core/factory.ts) - Store configuration
