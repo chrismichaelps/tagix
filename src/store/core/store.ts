@@ -30,12 +30,11 @@ import type {
   StoreConfig,
   Action,
   AsyncAction,
-  Snapshot,
   SubscribeCallback,
   MiddlewareContext,
 } from "../types";
 import { DEFAULT_CONFIG, ACTION_TYPE_PREFIX } from "../constants";
-import { StateTransitionError, ActionNotFoundError, SnapshotNotFoundError } from "../error";
+import { StateTransitionError, ActionNotFoundError } from "../error";
 import {
   getErrorCategory,
   getErrorInfo,
@@ -49,26 +48,18 @@ type StateTransitions<S extends { readonly _tag: string }> = Partial<
   Record<S["_tag"], (state: S, payload?: unknown) => S>
 >;
 
-interface LRUCacheEntry<T> {
-  value: T;
-  accessTime: number;
-}
-
 /**
  * Core store implementation for Tagix state management.
  * @typeParam S - The state type, must be a discriminated union with `_tag` property.
- * @remarks Manages state transitions, history, snapshots, subscriptions, and error tracking.
+ * @remarks Manages state transitions, subscriptions, and error tracking.
  */
 export class TagixStore<S extends { readonly _tag: string }> {
   private state: S;
   private readonly stateConstructor: TaggedEnumConstructor<S>;
   private readonly actions: Map<string, Action | AsyncAction> = new Map();
-  private readonly history: S[] = [];
-  private readonly snapshots: Map<string, LRUCacheEntry<Snapshot<S>>> = new Map();
   private readonly _errorHistory: Map<number, unknown> = new Map();
   private readonly _errorCountByCategory: Map<ErrorCategory, number> = new Map();
   private readonly subscribers: Set<SubscribeCallback<S>> = new Set();
-  private undoIndex: number = -1;
   private readonly config: Required<StoreConfig<S>>;
   private readonly _validStateTags: Set<string>;
   private readonly _dispatchMiddleware: (action: Action | AsyncAction) => void;
@@ -82,8 +73,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.state = initialState;
     this.stateConstructor = stateConstructor;
     this.config = { ...DEFAULT_CONFIG, ...config } as Required<StoreConfig<S>>;
-    this.history.push(initialState);
-    this.undoIndex = -1;
 
     this._validStateTags = new Set();
 
@@ -155,40 +144,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
-   * History up to the current undo index.
-   * @remarks Includes all states from initial state to current position.
-   */
-  get currentHistory(): readonly S[] {
-    return this.history.slice(0, this.undoIndex + 1);
-  }
-
-  /**
-   * Total number of states in history.
-   */
-  get historyLength(): number {
-    return this.history.length;
-  }
-
-  /**
-   * Current position in undo/redo history.
-   * @remarks -1 indicates at initial state, positive values indicate forward in history.
-   */
-  get undoIndexValue(): number {
-    return this.undoIndex;
-  }
-
-  /**
    * Store configuration with all defaults applied.
    */
   get configValue(): Readonly<Required<StoreConfig<S>>> {
     return this.config;
-  }
-
-  /**
-   * Names of all saved snapshots.
-   */
-  get snapshotNames(): readonly string[] {
-    return Array.from(this.snapshots.keys());
   }
 
   /**
@@ -222,7 +181,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
   /**
    * Whether the most recent error is recoverable.
-   * @returns True if the error is in a recoverable category (STATE, ACTION, PAYLOAD, SNAPSHOT).
+   * @returns True if the error is in a recoverable category (STATE, ACTION, PAYLOAD).
    */
   get isLastErrorRecoverable(): boolean {
     const code = this.lastErrorCode;
@@ -248,7 +207,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
   /**
    * Gets all errors in a specific category.
-   * @param category - The error category to filter by.
+   * @param category - The error category to filter for.
    * @returns Array of errors in the specified category.
    */
   getErrorsByCategory(category: ErrorCategory): readonly unknown[] {
@@ -298,22 +257,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
-   * Checks if undo is possible.
-   * @returns True if there are previous states to restore.
-   */
-  canUndo(): boolean {
-    return this.undoIndex > 0;
-  }
-
-  /**
-   * Checks if redo is possible.
-   * @returns True if there are future states to restore.
-   */
-  canRedo(): boolean {
-    return this.undoIndex < this.history.length - 1;
-  }
-
-  /**
    * Dispatches an action to update state.
    * @typeParam TPayload - The payload type for this dispatch.
    * @param type - The action type identifier (without prefix).
@@ -336,7 +279,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     }
 
     const syncAction = action as unknown as Action<TPayload, S>;
-    this._currentPayload = syncAction.payload;
+    this._currentPayload = _payload;
     this._dispatchMiddleware(syncAction as unknown as Action | AsyncAction);
   }
 
@@ -370,7 +313,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
         }
 
         this.state = newState;
-        this.addToHistory(newState);
         this.notifySubscribers();
       },
     });
@@ -400,7 +342,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
       const done = match(result, {
         onRight: (value) => {
           this.state = action.onSuccess(currentState, value);
-          this.addToHistory(this.state);
           this.notifySubscribers();
           return true;
         },
@@ -420,19 +361,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this.state = action.onError(currentState, lastError!);
     this.recordError(lastError);
     this.notifySubscribers();
-  }
-
-  private addToHistory(newState: S): void {
-    this.history.push(newState);
-    this.undoIndex = this.history.length - 1;
-
-    const maxHistory = this.config.maxUndoHistory;
-    if (maxHistory > 0) {
-      while (this.history.length > maxHistory + 1) {
-        this.history.shift();
-        this.undoIndex = this.history.length - 1;
-      }
-    }
   }
 
   private recordError(error: unknown): void {
@@ -473,92 +401,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
     for (const subscriber of this.subscribers) {
       subscriber(this.state);
     }
-  }
-
-  /**
-   * Reverts state to the previous state in history.
-   * @remarks Does nothing if already at the initial state. Notifies subscribers.
-   */
-  undo(): void {
-    if (this.undoIndex <= 0) {
-      if (this.undoIndex === 0) {
-        this.state = this.history[0];
-        this.undoIndex = -1;
-        this.notifySubscribers();
-      }
-      return;
-    }
-    this.undoIndex--;
-    this.state = this.history[this.undoIndex];
-    this.notifySubscribers();
-  }
-
-  /**
-   * Advances state to the next state in history.
-   * @remarks Does nothing if already at the latest state. Notifies subscribers.
-   */
-  redo(): void {
-    if (!this.canRedo()) return;
-    this.undoIndex++;
-    this.state = this.history[this.undoIndex];
-    this.notifySubscribers();
-  }
-
-  /**
-   * Saves a snapshot of the current state.
-   * @param name - Unique name for the snapshot.
-   * @remarks Uses LRU eviction when `maxSnapshots` is exceeded. Updates access time if snapshot exists.
-   */
-  snapshot(name: string): void {
-    const isUpdate = this.snapshots.has(name);
-
-    const entry: LRUCacheEntry<Snapshot<S>> = {
-      value: {
-        name,
-        state: this.state,
-        timestamp: Date.now(),
-      },
-      accessTime: Date.now(),
-    };
-
-    this.snapshots.set(name, entry);
-
-    if (!isUpdate && this.snapshots.size > this.config.maxSnapshots) {
-      let oldestName: string | undefined;
-      let oldestTime = Infinity;
-
-      for (const [snapName, snapEntry] of this.snapshots) {
-        if (snapEntry.accessTime < oldestTime) {
-          oldestTime = snapEntry.accessTime;
-          oldestName = snapName;
-        }
-      }
-
-      if (oldestName) {
-        this.snapshots.delete(oldestName);
-      }
-    }
-  }
-
-  /**
-   * Restores state from a saved snapshot.
-   * @param name - The snapshot name to restore.
-   * @throws {SnapshotNotFoundError} If the snapshot does not exist.
-   * @remarks Updates snapshot access time and notifies subscribers.
-   */
-  restore(name: string): void {
-    const entry = this.snapshots.get(name);
-
-    if (entry === undefined) {
-      throw new SnapshotNotFoundError({
-        name,
-        available: Array.from(this.snapshots.keys()),
-      });
-    }
-
-    entry.accessTime = Date.now();
-    this.state = entry.value.state;
-    this.notifySubscribers();
   }
 
   /**
