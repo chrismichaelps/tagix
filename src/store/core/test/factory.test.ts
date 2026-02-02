@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createStore, createAction, createLoggerMiddleware, taggedEnum } from "../../index";
+import {
+  createStore,
+  createAction,
+  createLoggerMiddleware,
+  taggedEnum,
+  getProperty,
+} from "../../index";
 import { getValue } from "../../test/utils";
 import { isNotNullish } from "../../../lib/Data/predicate";
 import { isSome } from "../../../lib/Data/option";
@@ -191,7 +197,11 @@ describe("Store Edge Cases", () => {
     });
 
     const transitions = store.transitions({
-      Idle: (s) => ({ ...s, _tag: "Ready" as const, value: s.value }),
+      Idle: (s) => ({
+        ...s,
+        _tag: "Ready" as const,
+        value: (s as Extract<CounterStateType, { _tag: "Idle" }>).value,
+      }),
       Ready: (s) => ({ ...s, _tag: "Idle" as const, value: 0 }),
     });
 
@@ -260,30 +270,31 @@ describe("Store Edge Cases", () => {
         Error: { message: "" },
       });
 
-      const store = createStore(CounterState.Idle({ value: 0 }), {
+      type LocalCounterState = typeof CounterState.State;
+      const store = createStore<LocalCounterState>(CounterState.Idle({ value: 0 }), CounterState, {
         name: "Counter",
       });
 
-      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      const increment = createAction<{ amount: number }, LocalCounterState>("Increment")
         .withPayload({ amount: 1 })
         .withState((s, p) => {
-          const state = s as Extract<CounterStateType, { value: number }>;
-          return { ...s, value: state.value + p.amount } as CounterStateType;
+          const state = s as Extract<LocalCounterState, { value: number }>;
+          return { ...s, value: state.value + p.amount } as LocalCounterState;
         });
 
       store.register("Increment", increment);
 
-      let lastState: CounterStateType | null = null;
+      let lastState: LocalCounterState | null = null;
       store.subscribe((state) => {
         lastState = state;
       });
 
-      expect(lastState?._tag).toBe("Idle");
+      expect(getProperty(lastState!, "_tag")).toBe("Idle");
       expect(getValue(lastState!)).toBe(0);
 
       store.dispatch("tagix/action/Increment", { amount: 5 });
 
-      expect(lastState?._tag).toBe("Idle");
+      expect(getProperty(lastState!, "_tag")).toBe("Idle");
       expect(getValue(lastState!)).toBe(5);
 
       store.dispatch("tagix/action/Increment", { amount: 3 });
@@ -299,13 +310,17 @@ describe("Store Edge Cases", () => {
         Error: { message: "" },
       });
 
-      const store = createStore(CounterState.Idle({ value: 0 }), {
-        name: "TransitionsExample",
-      });
+      const store = createStore<typeof CounterState.State>(
+        CounterState.Idle({ value: 0 }),
+        CounterState,
+        {
+          name: "TransitionsExample",
+        }
+      );
 
       const handleTransition = store.transitions({
         Idle: (s) => ({ ...s, _tag: "Loading" as const }),
-        Loading: (s) => ({ ...s, _tag: "Ready" as const }),
+        Loading: (s) => ({ ...s, _tag: "Ready" as const, value: 0 }),
         Ready: (s) => ({ ...s, _tag: "Idle" as const, value: 0 }),
         Error: (s) => s,
       });
