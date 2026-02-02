@@ -180,7 +180,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 10 }))
-      .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
+      .onError((s, error) => ({ ...s, _tag: "Error" as const, message: String(error), code: 0 }));
 
     expect(fetchData.type).toBe("tagix/action/FetchData");
     expect(typeof fetchData.effect).toBe("function");
@@ -198,7 +198,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "mock-data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 100 }))
-      .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
+      .onError((s, error) => ({ ...s, _tag: "Error" as const, message: String(error), code: 0 }));
 
     store.register("FetchData", fetchData);
     await store.dispatch("tagix/action/FetchData", {});
@@ -562,7 +562,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => "data")
       .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: 10 }))
-      .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
+      .onError((s, error) => ({ ...s, _tag: "Error" as const, message: String(error), code: 0 }));
 
     store.register("FetchData", fetchData);
 
