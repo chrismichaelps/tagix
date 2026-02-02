@@ -25,21 +25,32 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import type { Action, AsyncAction } from "../types";
 import { ACTION_TYPE_PREFIX } from "../constants";
 
-interface ActionBuilder<TPayload, TState> {
+/**
+ * Relaxed state type for action handlers that allows accessing any property.
+ * The `& Record<string, any>` intersection allows accessing variant-specific properties
+ * without explicit type narrowing, while the base type ensures _tag is present.
+ */
+type RelaxedState<T extends { readonly _tag: string }> = T & Record<string, any>;
+
+interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
   withPayload(payload: TPayload): ActionBuilder<TPayload, TState>;
-  withState(handler: (state: TState, payload: TPayload) => TState): Action<TPayload, TState>;
+  withState(
+    handler: (state: RelaxedState<TState>, payload: TPayload) => TState
+  ): Action<TPayload, TState>;
 }
 
-interface AsyncActionBuilder<TPayload, TState, TEffect> {
-  state(stateFn: (currentState: TState) => TState): AsyncActionBuilder<TPayload, TState, TEffect>;
+interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string }, TEffect> {
+  state(
+    stateFn: (currentState: RelaxedState<TState>) => TState
+  ): AsyncActionBuilder<TPayload, TState, TEffect>;
   effect(
     effectFn: (payload: TPayload) => Promise<TEffect>
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onSuccess(
-    handler: (currentState: TState, result: TEffect) => TState
+    handler: (currentState: RelaxedState<TState>, result: TEffect) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onError(
-    handler: (currentState: TState, error: unknown) => TState
+    handler: (currentState: RelaxedState<TState>, error: unknown) => TState
   ): AsyncAction<TPayload, TState, TEffect>;
 }
 
