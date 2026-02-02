@@ -8,7 +8,7 @@
 
 Tagix enforces a structured approach to state management where state must be defined as discriminated unions. This constraint enables full TypeScript type inference, exhaustive pattern matching with compile-time safety, and automatic type narrowing throughout your application.
 
-The library provides synchronous and asynchronous action creators with a fluent builder API, type-safe selectors with built-in memoization, comprehensive error handling with structured error codes and analytics, and history management with undo/redo and state snapshots. All types are automatically inferred from your state definitions, eliminating manual type annotations while ensuring compile-time correctness.
+The library provides synchronous and asynchronous action creators with a fluent builder API, type-safe selectors with built-in memoization, and comprehensive error handling with structured error codes and analytics. All types are automatically inferred from your state definitions, eliminating manual type annotations while ensuring compile-time correctness.
 
 > **Alert:** Tagix is currently in development and is not ready for production use.
 
