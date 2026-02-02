@@ -13,7 +13,6 @@
     "pattern-matching",
     "type-safe",
     "state-machine",
-    "undo-redo",
     "immutable",
     "discriminated-unions",
     "exhaustive-matching",
@@ -21,7 +20,8 @@
     "async-actions",
     "middleware",
     "selectors",
-    "error-handling"
+    "error-handling",
+    "context"
   ],
   "author": "Chris M. Pérez",
   "license": "MIT",
