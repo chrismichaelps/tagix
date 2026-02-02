@@ -37,7 +37,7 @@ import { TagixStore } from "./store";
  * const store = createStore(
  *   CounterState.Value({ count: 0 }),
  *   CounterState,
- *   { name: "Counter", maxUndoHistory: 50 }
+ *   { name: "Counter" }
  * );
  * ```
  */
