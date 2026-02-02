@@ -33,10 +33,6 @@ export interface StoreConfig<S extends { readonly _tag: string }> {
   readonly strict?: boolean;
   /** Maximum number of errors to retain in history. @default 50 */
   readonly maxErrorHistory?: number;
-  /** Maximum number of snapshots to retain (LRU eviction). @default 10 */
-  readonly maxSnapshots?: number;
-  /** Maximum number of undo steps to retain (includes initial state). @default 100 */
-  readonly maxUndoHistory?: number;
   /** Maximum number of retries for failed async actions. @default 3 */
   readonly maxRetries?: number;
   /** Middleware chain for intercepting dispatches. */
@@ -99,31 +95,6 @@ export interface MiddlewareContext<S extends { readonly _tag: string }> {
 export type Middleware<S extends { readonly _tag: string }> = (
   context: MiddlewareContext<S>
 ) => (next: (action: Action | AsyncAction) => void) => (action: Action | AsyncAction) => void;
-
-/**
- * Snapshot of store state at a point in time.
- * @typeParam S - The state type.
- */
-export interface Snapshot<S extends { readonly _tag: string }> {
-  /** User-defined snapshot name. */
-  readonly name: string;
-  /** The state at snapshot time. */
-  readonly state: S;
-  /** Unix timestamp in milliseconds. */
-  readonly timestamp: number;
-}
-
-/**
- * Definition for derived/computed values.
- * @typeParam TState - The source state type.
- * @typeParam TValue - The computed value type.
- */
-export interface DerivedDefinition<TState extends { readonly _tag: string }, TValue> {
-  /** Key used to identify the derived value. */
-  readonly key: string;
-  /** Computation function. */
-  readonly compute: (state: TState) => TValue;
-}
 
 /** Callback invoked on state changes. @param state - The new state. */
 export type SubscribeCallback<S extends { readonly _tag: string }> = (state: S) => void;
