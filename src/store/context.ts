@@ -213,19 +213,18 @@ export class TagixContext<S extends { readonly _tag: string }> {
       callback(selected);
     };
 
-    wrappedCallback(this.store.stateValue);
+    // Call immediately with current state
+    wrappedCallback(this.getCurrent());
 
-    const unsubscribe = this.store.subscribe(wrappedCallback);
-
+    // Track subscription for disposal and _notifyChange notifications
     const subscriptionId = Symbol("select");
     this.subscriptions.set(subscriptionId, {
       entry: this.rootEntry,
       callback: wrappedCallback,
-      unsubscribe,
+      unsubscribe: () => {},
     });
 
     return () => {
-      unsubscribe();
       this.subscriptions.delete(subscriptionId);
     };
   }
@@ -379,7 +378,6 @@ export class TagixContext<S extends { readonly _tag: string }> {
       throw new Error("Cannot subscribe on disposed context");
     }
 
-    callback(this.getCurrent());
     return this.store.subscribe(callback);
   }
 
