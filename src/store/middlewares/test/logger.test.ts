@@ -7,6 +7,7 @@ import {
   taggedEnum,
 } from "../../index";
 import { getValue } from "../../test/utils";
+import { isNotNullish } from "../../../lib/Data/predicate";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -37,7 +38,7 @@ describe("createLoggerMiddleware", () => {
   });
 
   it("should work with store", () => {
-    const logger = createLoggerMiddleware?.({});
+    const logger = isNotNullish(createLoggerMiddleware) ? createLoggerMiddleware({}) : undefined;
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "LoggerTest",
       middlewares: logger ? [logger] : [],
@@ -47,7 +48,7 @@ describe("createLoggerMiddleware", () => {
   });
 
   it("should log actions when used with dispatch", () => {
-    const logger = createLoggerMiddleware?.({});
+    const logger = isNotNullish(createLoggerMiddleware) ? createLoggerMiddleware({}) : undefined;
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "LoggerDispatchTest",
       middlewares: logger ? [logger] : [],
@@ -68,9 +69,11 @@ describe("createLoggerMiddleware", () => {
   });
 
   it("should support custom predicate", () => {
-    const logger = createLoggerMiddleware?.({
-      predicate: (action) => action.type.includes("Increment"),
-    });
+    const logger = isNotNullish(createLoggerMiddleware)
+      ? createLoggerMiddleware({
+          predicate: (action) => action.type.includes("Increment"),
+        })
+      : undefined;
 
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "PredicateTest",
@@ -81,12 +84,14 @@ describe("createLoggerMiddleware", () => {
   });
 
   it("should support stateTransformer option", () => {
-    const logger = createLoggerMiddleware?.({
-      stateTransformer: (state) => ({
-        transformed: true,
-        value: getValue(state as CounterStateType),
-      }),
-    });
+    const logger = isNotNullish(createLoggerMiddleware)
+      ? createLoggerMiddleware({
+          stateTransformer: (state) => ({
+            transformed: true,
+            value: getValue(state as CounterStateType),
+          }),
+        })
+      : undefined;
 
     const store = createStore(CounterState.Idle({ value: 10 }), CounterState, {
       name: "TransformerTest",
@@ -97,9 +102,11 @@ describe("createLoggerMiddleware", () => {
   });
 
   it("should support actionTransformer option", () => {
-    const logger = createLoggerMiddleware?.({
-      actionTransformer: (action) => Object.assign({}, action, { transformed: true }),
-    });
+    const logger = isNotNullish(createLoggerMiddleware)
+      ? createLoggerMiddleware({
+          actionTransformer: (action) => Object.assign({}, action, { transformed: true }),
+        })
+      : undefined;
 
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "ActionTransformerTest",
