@@ -93,8 +93,8 @@ describe("memoize()", () => {
 
 describe("combineSelectors()", () => {
   it("should combine multiple selectors", () => {
-    const getValue = (s: { value: number }) => s.value;
-    const getTag = (s: { _tag: string }) => s._tag;
+    const getValue = (s: { value: number; _tag: string }) => s.value;
+    const getTag = (s: { value: number; _tag: string }) => s._tag;
 
     const combined = combineSelectors(getValue, getTag);
     const result = combined({ value: 20, _tag: "Ready" });
@@ -104,9 +104,9 @@ describe("combineSelectors()", () => {
   });
 
   it("should support multiple selector combination", () => {
-    const getValue = (s: { value: number }) => s.value;
-    const getTag = (s: { _tag: string }) => s._tag;
-    const getActive = (s: { active?: boolean }) => s.active ?? false;
+    const getValue = (s: { value: number; _tag: string; active?: boolean }) => s.value;
+    const getTag = (s: { value: number; _tag: string; active?: boolean }) => s._tag;
+    const getActive = (s: { value: number; _tag: string; active?: boolean }) => s.active ?? false;
 
     const combined = combineSelectors(getValue, getTag, getActive);
     const result = combined({ value: 30, _tag: "Ready", active: true });
@@ -184,7 +184,7 @@ describe("Complete Selector Example", () => {
     expect(userName).toBe("Red");
 
     const getUserName = pluck("user.name");
-    const readyState = store.stateValue as { user: { name: string } };
+    const readyState = store.stateValue as { user: { name: string; age: number } };
     const name = getUserName(readyState);
     expect(name).toBe("Red");
 
