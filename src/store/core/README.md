@@ -8,7 +8,7 @@ category: State Management
 
 # createStore
 
-Create a Tagix store instance for managing application state with built-in history, subscriptions, and middleware support.
+Create a Tagix store instance for managing application state with subscriptions and middleware support.
 
 ## Usage
 
@@ -42,8 +42,6 @@ createStore(initialState, config?)
 const store = createStore(CounterState.Idle({ value: 0 }), {
   name: "Counter",
   strict: false,
-  maxUndoHistory: 100,
-  maxSnapshots: 10,
   middlewares: [logger],
 });
 ```
@@ -55,9 +53,6 @@ const store = createStore(CounterState.Idle({ value: 0 }), {
 | `stateValue`        | `S`                    | Current state (getter)          |
 | `name`              | `string`               | Store name                      |
 | `registeredActions` | `readonly string[]`    | List of registered action types |
-| `snapshotNames`     | `readonly string[]`    | Available snapshot names        |
-| `canUndo()`         | `boolean`              | Can undo to previous state      |
-| `canRedo()`         | `boolean`              | Can redo to next state          |
 | `errorHistory`      | `readonly unknown[]`   | All recorded errors             |
 | `lastError`         | `unknown \| undefined` | Most recent error               |
 
@@ -97,30 +92,6 @@ const unsubscribe = store.subscribe((state) => {
 
 // Later, unsubscribe
 unsubscribe();
-```
-
-#### undo() / redo()
-
-Time-travel through state history.
-
-```ts
-store.dispatch("tagix/action/Increment", { amount: 1 });
-store.dispatch("tagix/action/Increment", { amount: 1 });
-
-store.undo(); // Goes back one state
-store.redo(); // Goes forward one state
-```
-
-#### snapshot(name) / restore(name)
-
-Save and restore named snapshots.
-
-```ts
-store.snapshot("before-login");
-
-store.dispatch("tagix/action/Login", {});
-// ... something goes wrong
-store.restore("before-login");
 ```
 
 #### isInState(tag)
@@ -171,8 +142,6 @@ interface StoreConfig<S> {
   name?: string; // Store name for debugging
   strict?: boolean; // Enforce valid state transitions
   maxErrorHistory?: number; // Max errors to track (default: 50)
-  maxSnapshots?: number; // Max named snapshots (default: 10)
-  maxUndoHistory?: number; // Max undo steps (default: 100)
   middlewares?: Middleware[]; // Custom middleware chain
 }
 ```
