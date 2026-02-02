@@ -1,6 +1,6 @@
 // https://gist.github.com/chrismichaelps/c0a8b3ea083ad2e01357f4f2990bba9a
 
-import { isRecord, isString, isNotNullish } from "./predicate";
+import { isRecord, isString, isNotNullish, hasProperty } from "./predicate";
 
 const plainArgsSymbol = Symbol.for("plainArgs");
 
@@ -11,12 +11,13 @@ export interface TaggedError<Tag extends string> extends Error {
 }
 
 function extractMessage(args: ErrorArgs): string | undefined {
-  const msg = args?.message;
+  const msg = hasProperty(args, "message") ? args.message : undefined;
   return isString(msg) ? msg : undefined;
 }
 
 function extractCause(args: ErrorArgs): { cause: unknown } | undefined {
-  return isNotNullish(args?.cause) ? { cause: args.cause } : undefined;
+  const cause = hasProperty(args, "cause") ? args.cause : undefined;
+  return isNotNullish(cause) ? { cause } : undefined;
 }
 
 function getStoredArgs(instance: object): ErrorArgs {
