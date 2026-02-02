@@ -160,4 +160,86 @@ describe("createLoggerMiddleware", () => {
 
     expect(store).toBeDefined();
   });
+
+  it("should support collapsed option", () => {
+    const logger = createLoggerMiddleware({ collapsed: true });
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "CollapsedTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("CollapsedTest");
+  });
+
+  it("should support duration option", () => {
+    const logger = createLoggerMiddleware({ duration: true });
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "DurationTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("DurationTest");
+  });
+
+  it("should support timestamp option", () => {
+    const logger = createLoggerMiddleware({ timestamp: true });
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "TimestampTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("TimestampTest");
+  });
+
+  it("should support level option", () => {
+    const loggerInfo = createLoggerMiddleware({ level: "info" });
+    const loggerWarn = createLoggerMiddleware({ level: "warn" });
+    const loggerError = createLoggerMiddleware({ level: "error" });
+
+    expect(loggerInfo).toBeDefined();
+    expect(loggerWarn).toBeDefined();
+    expect(loggerError).toBeDefined();
+  });
+
+  it("should support predicate option for filtering actions", () => {
+    const logger = createLoggerMiddleware({
+      predicate: (action) => !action.type.includes("DEBUG"),
+    });
+
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "PredicateTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("PredicateTest");
+  });
+
+  it("should support stateTransformer option", () => {
+    const logger = createLoggerMiddleware({
+      stateTransformer: (state) => ({
+        transformed: true,
+        value: getValue(state as CounterStateType),
+      }),
+    });
+
+    const store = createStore(CounterState.Idle({ value: 10 }), CounterState, {
+      name: "StateTransformerTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("StateTransformerTest");
+  });
+
+  it("should support actionTransformer option", () => {
+    const logger = createLoggerMiddleware({
+      actionTransformer: (action) => Object.assign({}, action, { transformed: true }),
+    });
+
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+      name: "ActionTransformerTest",
+      middlewares: [logger],
+    });
+
+    expect(store.name).toBe("ActionTransformerTest");
+  });
 });
