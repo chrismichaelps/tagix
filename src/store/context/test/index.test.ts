@@ -512,6 +512,97 @@ describe("TagixContext", () => {
       expect(store.lastError).toBeInstanceOf(Error);
       expect((store.lastError as Error).message).toBe("Test error");
     });
+
+    it("should cleanup forked contexts on dispose", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      const fork1 = context.fork();
+      const fork2 = context.fork();
+
+      expect(fork1.isDisposed).toBe(false);
+      expect(fork2.isDisposed).toBe(false);
+
+      context.dispose();
+
+      expect(fork1.isDisposed).toBe(true);
+      expect(fork2.isDisposed).toBe(true);
+    });
+
+    it("should allow independent fork disposal", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      const fork1 = context.fork();
+      const fork2 = context.fork();
+
+      fork1.dispose();
+
+      expect(fork1.isDisposed).toBe(true);
+      expect(fork2.isDisposed).toBe(false);
+
+      fork2.dispose();
+
+      expect(fork2.isDisposed).toBe(true);
+    });
+
+    it("should cleanup derived sub-contexts on dispose", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      const sub1 = context.provide("sub1", { data: 1 });
+      const sub2 = sub1.provide("sub2", { data: 2 });
+      const sub3 = sub2.provide("sub3", { data: 3 });
+
+      expect(sub1.isDisposed).toBe(false);
+      expect(sub2.isDisposed).toBe(false);
+      expect(sub3.isDisposed).toBe(false);
+
+      context.dispose();
+
+      expect(sub1.isDisposed).toBe(true);
+      expect(sub2.isDisposed).toBe(true);
+      expect(sub3.isDisposed).toBe(true);
+    });
+
+    it("should handle nested provide chains", () => {
+      const store = createStore(CounterState.Idle({ value: 10 }), CounterState);
+      const context = createContext(store);
+
+      const level1 = context.provide("level", { level: 1 });
+      const level2 = level1.provide("level", { level: 2 });
+      const level3 = level2.provide("level", { level: 3 });
+
+      const v1 = level1.get<{ level: number }>("level");
+      const v2 = level2.get<{ level: number }>("level");
+      const v3 = level3.get<{ level: number }>("level");
+
+      expect(isSome(v1)).toBe(true);
+      expect(unwrap(v1).level).toBe(1);
+
+      expect(isSome(v2)).toBe(true);
+      expect(unwrap(v2).level).toBe(2);
+
+      expect(isSome(v3)).toBe(true);
+      expect(unwrap(v3).level).toBe(3);
+    });
+
+    it("should handle derived values from parent state", () => {
+      const store = createStore(CounterState.Idle({ value: 5 }), CounterState);
+      const context = createContext(store);
+
+      const derivedContext = context.provide("derived", (parent) => ({
+        value: getValue(parent),
+        doubled: getValue(parent) * 2,
+        tripled: getValue(parent) * 3,
+      }));
+
+      const derived = derivedContext.get<{ value: number; doubled: number; tripled: number }>(
+        "derived"
+      );
+      expect(isSome(derived)).toBe(true);
+      expect(unwrap(derived)).toEqual({ value: 5, doubled: 10, tripled: 15 });
+    });
   });
 
   describe("complete example", () => {
