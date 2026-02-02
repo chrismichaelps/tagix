@@ -32,6 +32,7 @@ import type {
   AsyncAction,
   SubscribeCallback,
   MiddlewareContext,
+  isAsyncAction,
 } from "../types";
 import { DEFAULT_CONFIG, ACTION_TYPE_PREFIX } from "../constants";
 import { StateTransitionError, ActionNotFoundError } from "../error";
@@ -263,22 +264,43 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
-   * Dispatches an action to update state.
-   * @typeParam TPayload - The payload type for this dispatch.
-   * @param type - The action type identifier (without prefix).
-   * @param payload - The payload to pass to the action handler.
-   * @returns Promise for async actions, void for sync actions.
-   * @throws {ActionNotFoundError} If the action type is not registered.
+   * Dispatches an action. Supports multiple patterns:
+   * 1. String-based: dispatch("action/type", payload)
+   * 2. Action creator with payload: dispatch(actionCreator, payload)
+   * 3. Action creator returning action: dispatch(() => actionObject)
+   * @param typeOrAction - Action type string, action creator function, or action object.
+   * @param payload - Optional payload for the action.
+   * @returns void for sync actions, Promise for async actions.
    */
-  dispatch<TPayload>(type: string, _payload: TPayload): void | Promise<void> {
+  dispatch<T = unknown>(
+    typeOrAction: string | ((payload?: T) => object) | object,
+    payload?: T
+  ): void | Promise<void> {
+    if (typeof typeOrAction === "string") {
+      return this._dispatchByType(typeOrAction, payload);
+    }
+
+    if (typeof typeOrAction === "function") {
+      const action = (typeOrAction as (payload?: T) => object)(payload);
+      return this._dispatchAction(action as Action | AsyncAction, payload);
+    }
+
+    return this._dispatchAction(typeOrAction as Action | AsyncAction, payload);
+  }
+
+  private _dispatchByType(type: string, _payload: unknown): void | Promise<void> {
     const action = this.actions.get(type);
 
     if (action === null || action === undefined) {
       throw new ActionNotFoundError({ type });
     }
 
+    return this._dispatchAction(action, _payload);
+  }
+
+  private _dispatchAction(action: Action | AsyncAction, _payload: unknown): void | Promise<void> {
     if ("effect" in action) {
-      const asyncAction = action as unknown as AsyncAction<TPayload, S, unknown>;
+      const asyncAction = action as unknown as AsyncAction<unknown, S, unknown>;
       (asyncAction as unknown as Record<string, unknown>).payload = _payload;
       this._currentPayload = _payload;
       const shouldProceed = this._dispatchMiddleware(
@@ -291,11 +313,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
       const isValidPayload =
         actionPayload !== undefined &&
         !(typeof actionPayload === "number" && isNaN(actionPayload as number));
-      const payload = isValidPayload ? actionPayload : _payload;
-      return this.handleAsyncAction(asyncAction, payload as TPayload);
+      const effectivePayload = isValidPayload ? actionPayload : _payload;
+      return this.handleAsyncAction(asyncAction, effectivePayload);
     }
 
-    const syncAction = action as unknown as Action<TPayload, S>;
+    const syncAction = action as unknown as Action<unknown, S>;
     this._currentPayload = _payload;
     this._dispatchMiddleware(syncAction as unknown as Action | AsyncAction);
   }

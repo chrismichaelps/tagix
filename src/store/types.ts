@@ -102,5 +102,60 @@ export type Middleware<S extends { readonly _tag: string }> = (
 /** Callback invoked on state changes. @param state - The new state. */
 export type SubscribeCallback<S extends { readonly _tag: string }> = (state: S) => void;
 
-/** Callback invoked when a specific path in state changes. @param value - The new value at the path. */
+/**
+ * Callback invoked when a specific path in state changes. @param value - The new value at the path. */
 export type SubscribePathCallback<T> = (value: T) => void;
+
+/**
+ * Type guard to check if a value is a Tagix Action.
+ * @param value - Value to check.
+ * @returns True if value is an Action.
+ */
+export function isAction(value: unknown): value is Action {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    "handler" in value &&
+    !("effect" in value)
+  );
+}
+
+/**
+ * Type guard to check if a value is a Tagix AsyncAction.
+ * @param value - Value to check.
+ * @returns True if value is an AsyncAction.
+ */
+export function isAsyncAction(value: unknown): value is AsyncAction {
+  return typeof value === "object" && value !== null && "type" in value && "effect" in value;
+}
+
+/**
+ * Extracts the payload type from an Action or ActionCreator.
+ * @typeParam T - The action or action creator type.
+ */
+export type PayloadOf<T> =
+  T extends Action<infer P, any>
+    ? P
+    : T extends AsyncAction<infer P, any, any>
+      ? P
+      : T extends (payload: infer P) => Action<any, any>
+        ? P
+        : T extends (payload?: infer P) => AsyncAction<any, any, any>
+          ? P
+          : never;
+
+/**
+ * Extracts the state type from an Action or ActionCreator.
+ * @typeParam T - The action or action creator type.
+ */
+export type StateOf<T> =
+  T extends Action<any, infer S>
+    ? S
+    : T extends AsyncAction<any, infer S, any>
+      ? S
+      : T extends (payload: any) => Action<any, infer S>
+        ? S
+        : T extends (payload?: any) => AsyncAction<any, infer S, any>
+          ? S
+          : never;

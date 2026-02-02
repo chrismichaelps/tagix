@@ -843,3 +843,71 @@ describe("Async Action - State Freshness", () => {
     expect(state.message).toBe("Request failed");
   });
 });
+
+describe("Dispatch API", () => {
+  it("should support string-based dispatch for backward compatibility", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    store.register("Increment", increment);
+
+    store.dispatch("tagix/action/Increment", { amount: 7 });
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(7);
+  });
+
+  it("should support async action dispatch with string", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetchData = createAsyncAction<void, CounterStateType, string>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => "data")
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
+      .onError((s) => s);
+
+    store.register("FetchData", fetchData);
+
+    await store.dispatch("tagix/action/FetchData", undefined);
+
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+
+  it("should support dispatch with action creator function", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    store.register("Increment", increment);
+
+    const incrementBy = (payload: { amount: number }) => increment;
+    store.dispatch(incrementBy, { amount: 5 });
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(5);
+  });
+
+  it("should support async dispatch with action creator function", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetchData = createAsyncAction<{ id: number }, CounterStateType, string>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => `data-${p.id}`)
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data.length }))
+      .onError((s) => s);
+
+    store.register("FetchData", fetchData);
+
+    const fetchById = (payload: { id: number }) => fetchData;
+    await store.dispatch(fetchById, { id: 123 });
+
+    expect(store.stateValue._tag).toBe("Ready");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(8); // "data-123".length
+  });
+});
