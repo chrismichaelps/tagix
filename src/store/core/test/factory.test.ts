@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createStore, createAction, taggedEnum } from "../../index";
+import { createStore, createAction, createLoggerMiddleware, taggedEnum } from "../../index";
 import { getValue } from "../../test/utils";
 import { isNotNullish } from "../../../lib/Data/predicate";
+import { isSome } from "../../../lib/Data/option";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -39,8 +40,8 @@ describe("Store Basic", () => {
   });
 
   it("should support middlewares configuration", () => {
-    const loggerMiddleware = isNotNullish(createStoreLoggerMiddleware)
-      ? createStoreLoggerMiddleware({})
+    const loggerMiddleware = isNotNullish(createLoggerMiddleware)
+      ? createLoggerMiddleware({})
       : undefined;
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
       name: "MiddlewareTest",
@@ -50,8 +51,6 @@ describe("Store Basic", () => {
   });
 });
 
-import { createLoggerMiddleware as createStoreLoggerMiddleware } from "../../middlewares/logger";
-
 describe("Store Edge Cases", () => {
   it("should handle rapid state updates", () => {
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
@@ -60,7 +59,10 @@ describe("Store Edge Cases", () => {
 
     const increment = createAction<{ amount: number }, CounterStateType>("Increment")
       .withPayload({ amount: 1 })
-      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+      .withState((s, p) => {
+        const state = s as Extract<CounterStateType, { value: number }>;
+        return { ...s, value: state.value + p.amount } as CounterStateType;
+      });
 
     store.register("Increment", increment);
 
@@ -76,30 +78,40 @@ describe("Store Edge Cases", () => {
 
   it("should handle multiple subscribers", () => {
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
-      name: "Subscribers",
+      name: "MultiSubscriber",
     });
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => {
+        const state = s as Extract<CounterStateType, { value: number }>;
+        return { ...s, value: state.value + p.amount } as CounterStateType;
+      });
+
+    store.register("Increment", increment);
 
     let callCount1 = 0;
     let callCount2 = 0;
 
-    const unsub1 = store.subscribe(() => callCount1++);
-    const unsub2 = store.subscribe(() => callCount2++);
-
-    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
-      .withPayload({ amount: 1 })
-      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
-
-    store.register("Increment", increment);
-    store.dispatch("tagix/action/Increment", { amount: 1 });
+    const unsub1 = store.subscribe(() => {
+      callCount1++;
+    });
 
     expect(callCount1).toBe(1);
+
+    const unsub2 = store.subscribe(() => {
+      callCount2++;
+    });
+
     expect(callCount2).toBe(1);
 
-    unsub1();
     store.dispatch("tagix/action/Increment", { amount: 1 });
 
-    expect(callCount1).toBe(1);
+    expect(callCount1).toBe(2);
     expect(callCount2).toBe(2);
+
+    unsub1();
+    unsub2();
   });
 
   it("should track error history", () => {
@@ -160,7 +172,7 @@ describe("Store Edge Cases", () => {
     });
 
     const idleState = store.getState("Idle");
-    expect(idleState._tag).toBe("Some");
+    expect(isSome(idleState)).toBe(true);
   });
 
   it("should handle select method", () => {
@@ -237,5 +249,78 @@ describe("Store Edge Cases", () => {
 
     expect(store.getTotalErrorCount()).toBe(0);
     expect(store.errorHistory.length).toBe(0);
+  });
+
+  describe("Complete Store Example", () => {
+    it("should work with complete store example from README", () => {
+      const CounterState = taggedEnum({
+        Idle: { value: 0 },
+        Loading: {},
+        Ready: { value: 0 },
+        Error: { message: "" },
+      });
+
+      const store = createStore(CounterState.Idle({ value: 0 }), {
+        name: "Counter",
+      });
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+
+      store.register("Increment", increment);
+
+      let lastState: CounterStateType | null = null;
+      store.subscribe((state) => {
+        lastState = state;
+      });
+
+      expect(lastState?._tag).toBe("Idle");
+      expect(getValue(lastState!)).toBe(0);
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+
+      expect(lastState?._tag).toBe("Idle");
+      expect(getValue(lastState!)).toBe(5);
+
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      expect(getValue(lastState!)).toBe(8);
+    });
+
+    it("should work with store using transitions from README", () => {
+      const CounterState = taggedEnum({
+        Idle: { value: 0 },
+        Loading: {},
+        Ready: { value: 0 },
+        Error: { message: "" },
+      });
+
+      const store = createStore(CounterState.Idle({ value: 0 }), {
+        name: "TransitionsExample",
+      });
+
+      const handleTransition = store.transitions({
+        Idle: (s) => ({ ...s, _tag: "Loading" as const }),
+        Loading: (s) => ({ ...s, _tag: "Ready" as const }),
+        Ready: (s) => ({ ...s, _tag: "Idle" as const, value: 0 }),
+        Error: (s) => s,
+      });
+
+      expect(store.isInState("Idle")).toBe(true);
+
+      const loadingState = handleTransition(store.stateValue);
+      expect(loadingState._tag).toBe("Loading");
+
+      const readyState = handleTransition(loadingState);
+      expect(readyState._tag).toBe("Ready");
+
+      const idleState = handleTransition(readyState);
+      expect(idleState._tag).toBe("Idle");
+      expect(getValue(idleState)).toBe(0);
+    });
   });
 });
