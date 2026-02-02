@@ -23,6 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import type { MiddlewareContext, Action, AsyncAction } from "../types";
+import { isNotNullish } from "../../lib/Data/predicate";
 
 interface LoggerOptions {
   collapsed?: boolean | ((action: Action | AsyncAction) => boolean);
@@ -89,12 +90,13 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
         const actionTitle = `action ${actionType}${time ? ` @ ${time}` : ""}`;
 
         if (shouldCollapse) {
-          console.groupCollapsed?.(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
+          if (isNotNullish(console.groupCollapsed)) {
+            console.groupCollapsed(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
+          }
         } else {
-          const groupResult = console.group?.(
-            `%c${actionTitle}`,
-            "color: #9E9E9E; font-weight: bold;"
-          );
+          const groupResult = isNotNullish(console.group)
+            ? console.group(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;")
+            : undefined;
           if (groupResult === undefined) {
             log(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
           }
@@ -116,7 +118,9 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
           log(`%c (in ${took.toFixed(2)} ms)`, "color: #9E9E9E; font-weight: bold;");
         }
 
-        console.groupEnd?.();
+        if (isNotNullish(console.groupEnd)) {
+          console.groupEnd();
+        }
       };
     };
   };
