@@ -62,3 +62,5 @@ export * from "./functions";
 export * from "./predicate";
 
 export { type TaggedError as TaggedErrorType, TaggedError, isTaggedError } from "./tagged-error";
+
+export { getValue, getProperty, updateState, asVariant } from "../state-utils";
