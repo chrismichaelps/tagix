@@ -30,6 +30,7 @@ export * from "./core";
 export * from "./actions";
 export * from "./guards";
 export * from "./match";
+export * from "./context";
 export {
   patch,
   getState,
