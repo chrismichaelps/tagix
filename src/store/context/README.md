@@ -39,13 +39,17 @@ Create a new context from a store.
 const context = createContext(store, {
   parent: null,
   autoCleanup: true,
+  onError: (error) => console.error(error),
 });
 ```
 
 **Parameters:**
 
 - `store`: TagixStore instance
-- `config` (optional): Context configuration
+- `config` (optional): Context configuration with:
+  - `parent`: Parent context for nesting
+  - `autoCleanup`: Auto-dispose on cleanup
+  - `onError`: Custom error handler for subscription errors
 
 ### Properties
 
@@ -170,7 +174,7 @@ context.subscribeKey("_tag", (tag) => {
 
 #### use()
 
-Access state or a selected value. Works like React hooks.
+Access state or a selected value using a hook pattern.
 
 ```ts
 // Get full state
@@ -273,7 +277,7 @@ context.merge(otherContext);
 
 #### dispose()
 
-Clean up the context, removing all subscriptions and child contexts.
+Clean up the context, removing all subscriptions, child contexts, forks, and derived contexts.
 
 ```ts
 context.dispose();
@@ -282,7 +286,7 @@ context.dispose();
 context.getCurrent(); // Error: "Context has been disposed"
 ```
 
-**Note:** Safe to call multiple times. Disposes all child contexts recursively.
+**Note:** Safe to call multiple times. Disposes all child contexts, forked contexts, and derived contexts recursively.
 
 ## Complete Example
 
@@ -360,7 +364,7 @@ if (user.isSome) {
 
 ## Hook Pattern
 
-Use `use()` like React hooks:
+Use `use()` to access state or selected values:
 
 ```ts
 // Get full state
@@ -386,8 +390,8 @@ const fork = context.fork();
 // Make changes in fork
 fork.dispatch("tagix/action/Increment", { amount: 100 });
 
-// Merge fork back
-context.merge(fork);
+// Fork is tracked and disposed with parent
+context.dispose(); // fork is also disposed
 
 // Parent context now has merged state
 console.log(context.getCurrent().value); // 100
@@ -425,6 +429,26 @@ context.dispose();
   // Use context
   ctx.dispose();
 }
+```
+
+## Error Handling
+
+Configure custom error handling for subscription errors:
+
+```ts
+const context = createContext(store, {
+  onError: (error) => {
+    console.error("Context error:", error);
+    // Report to error tracking service
+  },
+});
+
+// Subscription errors are passed to the handler
+context.subscribe((state) => {
+  if (someCondition) {
+    throw new Error("Custom error");
+  }
+});
 ```
 
 ## Related
