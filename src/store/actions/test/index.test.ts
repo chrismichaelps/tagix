@@ -910,4 +910,226 @@ describe("Dispatch API", () => {
     const state = store.stateValue as Extract<CounterStateType, { value: number }>;
     expect(state.value).toBe(8); // "data-123".length
   });
+
+  it("should dispatch action with complex payload", () => {
+    interface UserPayload {
+      user: { id: number; name: string };
+      preferences: { theme: string; notifications: boolean };
+    }
+
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const setUser = createAction<UserPayload, CounterStateType>("SetUser")
+      .withPayload({
+        user: { id: 1, name: "Test" },
+        preferences: { theme: "dark", notifications: true },
+      })
+      .withState((s, p) => ({ ...s, value: p.user.id }));
+
+    store.register("SetUser", setUser);
+
+    const createSetUser = (payload: UserPayload) => setUser;
+    store.dispatch(createSetUser, {
+      user: { id: 42, name: "John" },
+      preferences: { theme: "light", notifications: false },
+    });
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(42);
+  });
+
+  it("should dispatch multiple actions in sequence with action creators", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    const decrement = createAction<{ amount: number }, CounterStateType>("Decrement")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value - p.amount }));
+
+    store.register("Increment", increment);
+    store.register("Decrement", decrement);
+
+    const inc = (payload: { amount: number }) => increment;
+    const dec = (payload: { amount: number }) => decrement;
+
+    store.dispatch(inc, { amount: 10 });
+    store.dispatch(dec, { amount: 3 });
+    store.dispatch(inc, { amount: 5 });
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(12);
+  });
+
+  it("should dispatch async actions with retry", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    let attempts = 0;
+    const fetchWithRetry = createAsyncAction<void, CounterStateType, string>("FetchWithRetry")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => {
+        attempts++;
+        if (attempts < 3) throw new Error("Failed");
+        return "success";
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: attempts }))
+      .onError((s) => s);
+
+    store.register("FetchWithRetry", fetchWithRetry);
+
+    const createFetch = () => fetchWithRetry;
+    await store.dispatch(createFetch());
+
+    expect(store.stateValue._tag).toBe("Ready");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(3);
+  });
+
+  it("should dispatch async action with error handling", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const riskyFetch = createAsyncAction<void, CounterStateType, string>("RiskyFetch")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => {
+        throw new Error("Network error");
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
+      .onError((s, error) => ({
+        ...s,
+        _tag: "Error",
+        message: error instanceof Error ? error.message : String(error),
+        value: -1,
+        code: 500,
+      }));
+
+    store.register("RiskyFetch", riskyFetch);
+
+    const createRiskyFetch = () => riskyFetch;
+    await store.dispatch(createRiskyFetch());
+
+    expect(store.stateValue._tag).toBe("Error");
+    const state = store.stateValue as Extract<CounterStateType, { _tag: "Error" }>;
+    expect(state.message).toBe("Network error");
+  });
+
+  it("should dispatch action creator that returns different action types", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    const setValue = createAction<{ value: number }, CounterStateType>("SetValue")
+      .withPayload({ value: 0 })
+      .withState((s, p) => ({ ...s, value: p.value }));
+
+    store.register("Increment", increment);
+    store.register("SetValue", setValue);
+
+    const actions = {
+      inc: (payload: { amount: number }) => increment,
+      set: (payload: { value: number }) => setValue,
+    };
+
+    store.dispatch(actions.inc, { amount: 5 });
+    store.dispatch(actions.set, { value: 100 });
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(100);
+  });
+
+  it("should dispatch async action and return Promise", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetchData = createAsyncAction<{ delay: number }, CounterStateType, number>("FetchData")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => {
+        await new Promise((resolve) => setTimeout(resolve, p.delay));
+        return 42;
+      })
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: data }))
+      .onError((s) => s);
+
+    store.register("FetchData", fetchData);
+
+    const createFetch = (payload: { delay: number }) => fetchData;
+    const result = store.dispatch(createFetch, { delay: 10 });
+
+    expect(result).toBeInstanceOf(Promise);
+    await result;
+
+    expect(store.stateValue._tag).toBe("Ready");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(42);
+  });
+
+  it("should dispatch action with undefined payload", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const reset = createAction<void, CounterStateType>("Reset").withState((s) => ({
+      ...s,
+      value: 0,
+    }));
+
+    store.register("Reset", reset);
+
+    const createReset = () => reset;
+    store.dispatch(createReset, undefined);
+
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(0);
+  });
+
+  it("should handle concurrent async dispatches", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetchA = createAsyncAction<{ id: number }, CounterStateType, number>("FetchA")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => p.id * 10)
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: s.value + data }))
+      .onError((s) => s);
+
+    const fetchB = createAsyncAction<{ id: number }, CounterStateType, number>("FetchB")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async (p) => p.id * 5)
+      .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: s.value + data }))
+      .onError((s) => s);
+
+    store.register("FetchA", fetchA);
+    store.register("FetchB", fetchB);
+
+    const fetchA_fn = (payload: { id: number }) => fetchA;
+    const fetchB_fn = (payload: { id: number }) => fetchB;
+
+    await Promise.all([store.dispatch(fetchA_fn, { id: 1 }), store.dispatch(fetchB_fn, { id: 2 })]);
+
+    expect(store.stateValue._tag).toBe("Ready");
+    const state = store.stateValue as Extract<CounterStateType, { value: number }>;
+    expect(state.value).toBe(20);
+  });
+
+  it("should dispatch action with nested state updates", () => {
+    const NestedState = taggedEnum({
+      Idle: { data: null },
+      Ready: { data: { value: 0 } },
+    });
+
+    type NestedStateType = typeof NestedState.State;
+
+    const store = createStore(NestedState.Idle({ data: null }), NestedState);
+
+    const setData = createAction<{ value: number }, NestedStateType>("SetData")
+      .withPayload({ value: 0 })
+      .withState((s, p) => NestedState.Ready({ data: { value: p.value } }));
+
+    store.register("SetData", setData);
+
+    const createSetData = (payload: { value: number }) => setData;
+    store.dispatch(createSetData, { value: 42 });
+
+    const state = store.stateValue as Extract<NestedStateType, { _tag: "Ready" }>;
+    expect(state.data.value).toBe(42);
+  });
 });

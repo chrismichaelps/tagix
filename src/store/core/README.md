@@ -188,6 +188,57 @@ const rateLimitMiddleware = () => (next) => (action) => {
 };
 ```
 
+## Dispatch API
+
+The `dispatch()` method supports multiple patterns for triggering actions:
+
+### String-Based Dispatch (Traditional)
+
+```ts
+store.dispatch("tagix/action/Increment", { amount: 5 });
+```
+
+### Action Creator Dispatch (Recommended)
+
+Pass action creators directly for type-safe dispatch:
+
+```ts
+const increment = createAction("Increment")
+  .withPayload({ amount: 1 })
+  .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+// Curried action creator
+const incrementBy = (payload: { amount: number }) => increment;
+
+// Type-safe dispatch
+store.dispatch(incrementBy, { amount: 5 });
+```
+
+### Async Action Dispatch
+
+```ts
+const fetchData = createAsyncAction("FetchData")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async () => {
+    const response = await fetch("/api/data");
+    return response.json();
+  })
+  .onSuccess((s, data) => ({ ...s, _tag: "Ready", data }))
+  .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+
+const fetchById = (payload: { id: number }) => fetchData;
+
+// Async dispatch returns Promise
+await store.dispatch(fetchById, { id: 123 });
+```
+
+### Benefits of Action Creator Pattern
+
+- **Type Safety**: Payload types inferred automatically
+- **IDE Support**: Full autocomplete for action types
+- **Refactorable**: Rename actions without string replacement
+- **Testable**: Easy to mock and test action creators
+
 ## Example: Complete Store
 
 ```ts

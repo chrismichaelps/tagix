@@ -260,6 +260,56 @@ await Promise.all([
 ]);
 ```
 
+## Dispatch Patterns
+
+Actions can be dispatched using multiple patterns:
+
+### String-Based (Traditional)
+
+```ts
+store.dispatch("tagix/action/Increment", { amount: 5 });
+```
+
+### Action Creator (Recommended)
+
+Create reusable action creators for type-safe dispatch:
+
+```ts
+const increment = createAction("Increment")
+  .withPayload({ amount: 1 })
+  .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+// Curried action creator
+const incrementBy = (payload: { amount: number }) => increment;
+
+// Type-safe dispatch
+store.dispatch(incrementBy, { amount: 5 });
+```
+
+### Async Action Dispatch
+
+```ts
+const fetchData = createAsyncAction("FetchData")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async () => {
+    const response = await fetch("/api/data");
+    return response.json();
+  })
+  .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
+  .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+
+const fetchById = (payload: { id: number }) => fetchData;
+
+// Async dispatch
+await store.dispatch(fetchById, { id: 123 });
+```
+
+### Benefits
+
+- **Type Inference**: Payload types automatically inferred
+- **IDE Support**: Full autocomplete and refactoring
+- **Testability**: Easy to test action creators independently
+
 ## Related
 
 - [createAction](./index.ts) - Synchronous actions
