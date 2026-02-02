@@ -67,3 +67,17 @@ export const tap = <A>(option: Option<A>, f: (a: A) => void): Option<A> => {
   }
   return option;
 };
+
+export const unwrap = <A>(option: Option<A>): A => {
+  if (isNone(option)) {
+    throw new Error("Cannot unwrap None");
+  }
+  return (option as Some<A>).value;
+};
+
+export const expect = <A>(option: Option<A>, message: string): A => {
+  if (isNone(option)) {
+    throw new Error(message);
+  }
+  return (option as Some<A>).value;
+};
