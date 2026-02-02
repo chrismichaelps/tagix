@@ -1,0 +1,39 @@
+{
+  "title": "Tagix Documentation",
+  "sidebar": [
+    {
+      "title": "Getting Started",
+      "items": [
+        { "title": "Installation", "file": "01-installation.md", "position": 1 },
+        { "title": "Quick Start", "file": "02-quick-start.md", "position": 2 },
+        { "title": "Core Concepts", "file": "03-core-concepts.md", "position": 3 },
+        { "title": "Architecture", "file": "04-architecture.md", "position": 4 }
+      ]
+    },
+    {
+      "title": "State Management",
+      "items": [
+        { "title": "State Definitions", "file": "10-state-definitions.md", "position": 1 },
+        { "title": "Actions", "file": "11-actions.md", "position": 2 },
+        { "title": "Async Actions", "file": "12-async-actions.md", "position": 3 },
+        { "title": "State Machines", "file": "13-state-machines.md", "position": 4 }
+      ]
+    },
+    {
+      "title": "Features",
+      "items": [
+        { "title": "Selectors", "file": "20-selectors.md", "position": 1 },
+        { "title": "Middleware", "file": "21-middleware.md", "position": 2 },
+        { "title": "Context", "file": "22-context.md", "position": 3 },
+        { "title": "Error Handling", "file": "23-error-handling.md", "position": 4 }
+      ]
+    },
+    {
+      "title": "Advanced Topics",
+      "items": [
+        { "title": "Type Safety", "file": "40-type-safety.md", "position": 1 },
+        { "title": "Testing", "file": "41-testing.md", "position": 2 }
+      ]
+    }
+  ]
+}
