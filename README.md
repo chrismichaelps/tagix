@@ -16,6 +16,10 @@ The library provides synchronous and asynchronous action creators with a fluent 
 
 ---
 
+### Documentation
+
+- [Documentation](docs/README.md)
+
 ### **:busts_in_silhouette: Credits**
 
 - [Chris Michael](https://github.com/chrismichaelps) (Project Leader, and Developer)
