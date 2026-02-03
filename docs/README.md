@@ -3,46 +3,6 @@ category: Guide
 alias: documentation
 title: Tagix Documentation
 description: Tagix is a TypeScript state management library built on functional programming primitives
-keywords:
-  - tagix
-  - documentation
-  - state management
-  - typescript
-sidebar:
-  position: 0
-  label: Documentation
-  icon: house
-tags:
-  - documentation
-  - guide
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: null
-pagination_next: 01-installation
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: website
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Tagix Documentation
-  - tag: meta
-    attrs:
-      property: og:description
-      content: TypeScript state management library documentation
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: false
-hide_table_of_contents: false
-toc_max_heading_level: 2
-lang: en
-dir: ltr
 ---
 
 # Tagix Documentation
