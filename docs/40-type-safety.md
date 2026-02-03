@@ -3,49 +3,6 @@ category: Advanced
 alias: type-safety
 title: Type Safety
 description: Leverage TypeScript for compile-time correctness
-keywords:
-  - typescript
-  - type safety
-  - types
-  - inference
-sidebar:
-  position: 1
-  label: Type Safety
-  icon: shield-check
-tags:
-  - typescript
-  - types
-  - advanced
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: null
-pagination_next: 41-testing
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Type Safety - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Leverage TypeScript for type safety
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-level: advanced
 ---
 
 # Type Safety

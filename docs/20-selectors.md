@@ -3,46 +3,6 @@ category: Features
 alias: selectors
 title: Selectors
 description: Extract and derive values from state
-keywords:
-  - selectors
-  - derived state
-  - extraction
-sidebar:
-  position: 1
-  label: Selectors
-  icon: eye
-tags:
-  - selectors
-  - features
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: null
-pagination_next: 21-middleware
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Selectors - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Extract values from state
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
 ---
 
 # Selectors

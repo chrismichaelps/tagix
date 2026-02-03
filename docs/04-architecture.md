@@ -3,71 +3,7 @@ category: Getting Started
 alias: architecture
 title: Architecture
 description: Understand the internal design of Tagix
-keywords:
-  - architecture
-  - internal
-  - design
-  - store
-sidebar:
-  position: 4
-  label: Architecture
-  icon: diagram-3
-tags:
-  - architecture
-  - internals
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 03-core-concepts
-pagination_next: null
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Architecture - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Understand Tagix internal design
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-level: intermediate
 ---
-
-# Architecture
-
-Understand the internal design of Tagix.
-
-## Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Application                              │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐       │
-│  │  Actions    │───>│   Store     │───>│ Subscribers  │       │
-│  │  (Creators) │    │  (Core)     │    │ (Components) │       │
-│  └─────────────┘    └─────────────┘    └─────────────┘       │
-│                            │                                   │
-│                     ┌──────▼──────┐                           │
-│                     │  Middleware  │                           │
-│                     │  (Optional)  │                           │
-│                     └─────────────┘                           │
-└─────────────────────────────────────────────────────────────┘
-```
 
 ## Store Structure
 
@@ -183,28 +119,3 @@ const fork = mainStore.fork();
 // Changes to fork don't affect mainStore
 fork.dispatch("Action", payload);
 ```
-
-## Type Inference Flow
-
-```
-State Definition ──> TypeScript ──> Complete Type Inference
-      │
-      ▼
-taggedEnum ──> Constructors + State Union
-      │
-      ▼
-createAction ──> Payload Types + State Handler Types
-      │
-      ▼
-Store ──> Full Type Safety at Compile Time
-```
-
-## Performance Characteristics
-
-| Operation      | Complexity | Notes                      |
-| -------------- | ---------- | -------------------------- |
-| Dispatch       | O(1)       | Plus middleware execution  |
-| Subscribe      | O(1)       | Constant time registration |
-| Select         | O(1)       | Direct property access     |
-| State equality | O(n)       | Shallow comparison         |
-| Fork           | O(1)       | Structural sharing         |

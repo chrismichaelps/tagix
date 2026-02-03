@@ -3,47 +3,6 @@ category: State Management
 alias: state-definitions
 title: State Definitions
 description: Define your application state using tagged unions
-keywords:
-  - state
-  - tagged unions
-  - discriminated unions
-sidebar:
-  position: 1
-  label: State Definitions
-  icon: layers
-tags:
-  - state
-  - core
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: null
-pagination_next: 11-actions
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: State Definitions - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Define state with tagged unions
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-level: beginner
 ---
 
 # State Definitions

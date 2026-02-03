@@ -3,49 +3,6 @@ category: Getting Started
 alias: quickstart
 title: Quick Start
 description: Build your first Tagix application in under five minutes
-keywords:
-  - quickstart
-  - tutorial
-  - getting started
-  - example
-sidebar:
-  position: 2
-  label: Quick Start
-  icon: lightning-charge
-tags:
-  - tutorial
-  - beginner
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 01-installation
-pagination_next: 03-core-concepts
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Quick Start - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Build your first Tagix application in 5 minutes
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-reading_time: 5
-level: beginner
 ---
 
 # Quick Start

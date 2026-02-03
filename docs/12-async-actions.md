@@ -3,47 +3,6 @@ category: State Management
 alias: async-actions
 title: Async Actions
 description: Handle asynchronous operations with effects, success, and error handlers
-keywords:
-  - async
-  - effects
-  - promises
-  - asynchronous
-sidebar:
-  position: 3
-  label: Async Actions
-  icon: arrow-repeat
-tags:
-  - async
-  - effects
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 11-actions
-pagination_next: 13-state-machines
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Async Actions - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Handle async operations with effects
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
 ---
 
 # Async Actions
@@ -149,26 +108,6 @@ try {
 } catch (error) {
   console.error("Action failed:", error);
 }
-```
-
-## Payload Flow
-
-```
-dispatch(payload)
-    │
-    ▼
-┌─────────────┐
-│   .state()  │───> Loading state
-└─────────────┘
-    │
-    ▼
-┌─────────────┐
-│  .effect()  │───> Async operation
-└─────────────┘
-    │
-    ├──────> Resolves ──> .onSuccess()
-    │
-    └──────> Rejects ──> .onError()
 ```
 
 ## Error Handling

@@ -3,47 +3,6 @@ category: State Management
 alias: state-machines
 title: State Machines
 description: Model state transitions as finite state machines
-keywords:
-  - state machines
-  - transitions
-  - finite state
-sidebar:
-  position: 4
-  label: State Machines
-  icon: diagram-2
-tags:
-  - state-machines
-  - transitions
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 12-async-actions
-pagination_next: null
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: State Machines - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Build state machines with Tagix
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-level: intermediate
 ---
 
 # State Machines

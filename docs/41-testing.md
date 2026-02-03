@@ -3,47 +3,6 @@ category: Advanced
 alias: testing
 title: Testing
 description: Strategies for testing Tagix applications
-keywords:
-  - testing
-  - unit tests
-  - vitest
-  - testing strategies
-sidebar:
-  position: 2
-  label: Testing
-  icon: beaker
-tags:
-  - testing
-  - advanced
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 40-type-safety
-pagination_next: null
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Testing - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Test your Tagix applications
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
 ---
 
 # Testing

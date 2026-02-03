@@ -3,48 +3,6 @@ category: Getting Started
 alias: core-concepts
 title: Core Concepts
 description: Understand the foundational concepts that power Tagix
-keywords:
-  - concepts
-  - fundamentals
-  - tagged unions
-  - actions
-sidebar:
-  position: 3
-  label: Core Concepts
-  icon: book
-tags:
-  - fundamentals
-  - concepts
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 02-quick-start
-pagination_next: 04-architecture
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Core Concepts - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Learn the foundational concepts of Tagix
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
-level: beginner
 ---
 
 # Core Concepts

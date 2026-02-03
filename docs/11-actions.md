@@ -3,46 +3,6 @@ category: State Management
 alias: actions
 title: Actions
 description: Synchronous action creators for state updates
-keywords:
-  - actions
-  - state updates
-  - synchronous
-sidebar:
-  position: 2
-  label: Actions
-  icon: arrow-right-circle
-tags:
-  - actions
-  - state
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 10-state-definitions
-pagination_next: 12-async-actions
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Actions - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Create synchronous actions
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
 ---
 
 # Actions

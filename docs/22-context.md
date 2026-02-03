@@ -3,46 +3,6 @@ category: Features
 alias: context
 title: Context
 description: Framework-agnostic store integration
-keywords:
-  - context
-  - integration
-  - framework-agnostic
-sidebar:
-  position: 3
-  label: Context
-  icon: box
-tags:
-  - context
-  - integration
-author: Tagix Team
-last_updated: 2026-02-02
-version: 1.0.0
-draft: false
-pagination_prev: 21-middleware
-pagination_next: 23-error-handling
-head:
-  - tag: meta
-    attrs:
-      property: og:type
-      content: article
-  - tag: meta
-    attrs:
-      property: og:title
-      content: Context - Tagix
-  - tag: meta
-    attrs:
-      property: og:description
-      content: Framework-agnostic integration
-  - tag: meta
-    attrs:
-      property: og:image
-      content: @public/tagix-logo.png
-code_annotations: true
-line_numbers: true
-hide_table_of_contents: false
-toc_max_heading_level: 3
-lang: en
-dir: ltr
 ---
 
 # Context
@@ -232,8 +192,3 @@ return () => unsubscribe();
 store.subscribe(handler);
 // No cleanup
 ```
-
-## See Also
-
-- [Framework Integration](30-react.md) to [34-web-components.md) - Framework-specific guides
-- [Performance](42-performance.md) - Subscription optimization
