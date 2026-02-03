@@ -5,6 +5,23 @@
 <p align="center">
   A state management library for TypeScript built on functional programming primitives.
 </p>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/tagix">
+    <img src="https://img.shields.io/npm/v/tagix.svg?style=flat-square" alt="npm version" />
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License: MIT" />
+  </a>
+  <a href="https://github.com/chrismichaelps/tagix/actions/workflows/release.yml">
+    <img src="https://github.com/chrismichaelps/tagix/actions/workflows/release.yml/badge.svg" alt="Release" />
+  </a>
+  <a href="https://github.com/semantic-release/semantic-release">
+    <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg" alt="semantic-release" />
+  </a>
+</p>
+
 
 Tagix enforces a structured approach to state management where state must be defined as discriminated unions. This constraint enables full TypeScript type inference, exhaustive pattern matching with compile-time safety, and automatic type narrowing throughout your application.
 
@@ -25,6 +42,16 @@ The library provides synchronous and asynchronous action creators with a fluent 
 - [Chris Michael](https://github.com/chrismichaelps) (Project Leader, and Developer)
 
 ---
+
+### Installation 
+
+```bash
+npm install tagix
+# or
+pnpm add tagix
+# or
+yarn add tagix
+```
 
 ### **:anger: Troubleshootings**
 
