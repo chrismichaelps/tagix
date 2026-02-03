@@ -26,6 +26,19 @@ The library provides synchronous and asynchronous action creators with a fluent 
 
 ---
 
+### Installation 
+
+
+### Installation 
+
+```bash
+npm install tagix
+# or
+pnpm add tagix
+# or
+yarn add tagix
+```
+
 ### **:anger: Troubleshootings**
 
 This is just a personal project created for study / demonstration purpose and to simplify my working life, it may or may
