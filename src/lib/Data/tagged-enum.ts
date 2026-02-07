@@ -83,8 +83,13 @@ export function taggedEnum<A extends Record<string, Record<string, unknown>>>(
       }
 
       if (prop === "State") {
-        cache.set(prop, undefined);
-        return undefined;
+        const stateObj = Object.freeze(
+          Object.fromEntries(
+            Object.entries(definition).map(([tag, schema]) => [tag, Object.freeze({ ...schema })])
+          )
+        );
+        cache.set(prop, stateObj);
+        return stateObj;
       }
 
       if (typeof prop === "string") {
