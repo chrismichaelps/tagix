@@ -523,9 +523,29 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       throw new Error("Cannot select on disposed context");
     }
 
-    callback(selector(this.value));
+    const wrappedCallback = (state: unknown): void => {
+      const selected = selector(state as S);
+      callback(selected);
+    };
 
-    return () => {};
+    wrappedCallback(this.value);
+
+    const subscriptionId = Symbol("derived-select");
+    const unsubscribeFromParent = this.parentContext.subscribe(wrappedCallback);
+
+    this.subscriptions.set(subscriptionId, {
+      entry: this.entry,
+      callback: wrappedCallback,
+      unsubscribe: unsubscribeFromParent,
+    });
+
+    return () => {
+      const sub = this.subscriptions.get(subscriptionId);
+      if (sub) {
+        sub.unsubscribe();
+        this.subscriptions.delete(subscriptionId);
+      }
+    };
   }
 
   getCurrent(): S {
