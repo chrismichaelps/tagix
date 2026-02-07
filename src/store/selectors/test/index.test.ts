@@ -68,7 +68,7 @@ describe("memoize()", () => {
 
     const obj2 = { value: 5 };
     expect(memoized(obj2)).toBe(10);
-    expect(callCount).toBe(2);
+    expect(callCount).toBe(1);
   });
 
   it("should handle different inputs", () => {

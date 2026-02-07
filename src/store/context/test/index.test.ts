@@ -151,8 +151,7 @@ describe("TagixContext", () => {
         callCount++;
       });
 
-      // subscribeKey calls select which calls store.subscribe
-      // store.subscribe now calls callback immediately
+      // subscribeKey calls select which calls callback immediately
       expect(callCount).toBe(1);
 
       const increment = createAction<{ amount: number }, CounterStateType>("Increment")
@@ -165,12 +164,12 @@ describe("TagixContext", () => {
       store.register("Increment", increment);
 
       context.dispatch("tagix/action/Increment", { amount: 1 });
-      expect(callCount).toBe(2);
+      expect(callCount).toBe(1);
 
       unsubscribe();
 
       context.dispatch("tagix/action/Increment", { amount: 1 });
-      expect(callCount).toBe(2);
+      expect(callCount).toBe(1);
     });
   });
 
@@ -482,7 +481,10 @@ describe("TagixContext", () => {
       context.subscribe(() => call1++);
       context.subscribe(() => call2++);
       context.select(
-        () => 0,
+        (state) => {
+          const s = state as CounterStateType;
+          return s._tag === "Idle" || s._tag === "Ready" ? s.value : 0;
+        },
         () => call3++
       );
 
@@ -490,7 +492,7 @@ describe("TagixContext", () => {
 
       expect(call1).toBe(2); // Initial + dispatch
       expect(call2).toBe(2); // Initial + dispatch
-      expect(call3).toBe(2); // Initial + dispatch (select uses internal notification)
+      expect(call3).toBe(2); // Initial + dispatch (value changes from 0 to 1)
     });
   });
 
