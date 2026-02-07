@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/tagix-logo.png" alt="Tagix Logo" width="50%" />
+  <img src="public/tagix-logo.svg" alt="Tagix Logo" width="50%" />
 </p>
 
 <p align="center">
@@ -22,7 +22,6 @@
   </a>
 </p>
 
-
 Tagix enforces a structured approach to state management where state must be defined as discriminated unions. This constraint enables full TypeScript type inference, exhaustive pattern matching with compile-time safety, and automatic type narrowing throughout your application.
 
 The library provides synchronous and asynchronous action creators with a fluent builder API, type-safe selectors with built-in memoization, and comprehensive error handling with structured error codes and analytics. All types are automatically inferred from your state definitions, eliminating manual type annotations while ensuring compile-time correctness.
@@ -43,7 +42,7 @@ The library provides synchronous and asynchronous action creators with a fluent 
 
 ---
 
-### Installation 
+### Installation
 
 ```bash
 npm install tagix
