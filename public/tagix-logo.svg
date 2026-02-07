@@ -1,0 +1,26 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!-- Orange Square centered (size 80x80) -->
+  <rect x="10" y="10" width="80" height="80" rx="16" fill="#c6613f" />
+
+  <!-- The "T" from terms.svg, scaled to fit inside the 80x80 box -->
+  <!-- Original T path group was scaled 0.1.
+       In tagix_logo.svg, group was at translate(10,10) inside the svg.
+       Here we are also at 10,10 relative to 0,0 origin of viewBox.
+  -->
+  <g transform="translate(10, 10) scale(0.1)">
+    <!-- Vertical stroke (T stem) -->
+    <path d="M480 250 
+         C 460 350, 440 600, 450 800
+         C 480 820, 520 820, 550 800
+         C 560 600, 540 350, 520 250
+         Z" fill="#ffffff" />
+
+    <!-- Horizontal stroke (T bar) -->
+    <path d="M250 220
+         C 350 180, 650 180, 750 220
+         C 780 240, 780 280, 750 300
+         C 650 260, 350 260, 250 300
+         C 220 280, 220 240, 250 220
+         Z" fill="#ffffff" />
+  </g>
+</svg>
