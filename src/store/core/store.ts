@@ -49,6 +49,40 @@ type StateTransitions<S extends { readonly _tag: string }> = Partial<
   Record<S["_tag"], (state: S, payload?: unknown) => S>
 >;
 
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>
+): Record<string, unknown> {
+  if (source === null || source === undefined) {
+    return target;
+  }
+  if (target === null || target === undefined) {
+    return source;
+  }
+
+  const result: Record<string, unknown> = { ...target };
+
+  for (const key of Object.keys(source)) {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (sourceValue !== null && typeof sourceValue === "object" && !Array.isArray(sourceValue)) {
+      if (targetValue !== null && typeof targetValue === "object" && !Array.isArray(targetValue)) {
+        result[key] = deepMerge(
+          targetValue as Record<string, unknown>,
+          sourceValue as Record<string, unknown>
+        );
+      } else {
+        result[key] = sourceValue;
+      }
+    } else {
+      result[key] = sourceValue;
+    }
+  }
+
+  return result;
+}
+
 /**
  * Core store implementation for Tagix state management.
  * @typeParam S - The state type, must be a discriminated union with `_tag` property.
@@ -433,16 +467,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     const handlerResult = handler(freshState, handlerInput);
 
-    const merged: Record<string, unknown> = { ...freshState };
-    for (const key of Object.keys(handlerResult)) {
-      if (key === "_tag") {
-        merged._tag = handlerResult._tag;
-      } else {
-        merged[key] = (handlerResult as Record<string, unknown>)[key];
-      }
-    }
-
-    return merged as S;
+    return deepMerge(freshState, handlerResult) as S;
   }
 
   private recordError(error: unknown): void {
