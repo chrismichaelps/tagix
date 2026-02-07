@@ -289,10 +289,14 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private _dispatchByType(type: string, _payload: unknown): void | Promise<void> {
-    const action = this.actions.get(type);
+    const prefixedType = type.startsWith(ACTION_TYPE_PREFIX)
+      ? type
+      : `${ACTION_TYPE_PREFIX}${type}`;
+
+    const action = this.actions.get(prefixedType);
 
     if (action === null || action === undefined) {
-      throw new ActionNotFoundError({ type });
+      throw new ActionNotFoundError({ type: prefixedType });
     }
 
     return this._dispatchAction(action, _payload);
