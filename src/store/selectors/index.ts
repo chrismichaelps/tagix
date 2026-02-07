@@ -150,20 +150,40 @@ export function combineSelectors<T extends object, R1, R2, R3>(
   return (state) => [selector1(state), selector2(state)];
 }
 
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+
+  if (typeof a !== "object" || typeof b !== "object") return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => deepEqual(val, b[idx]));
+  }
+
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((key) => deepEqual(a[key as keyof typeof a], b[key as keyof typeof b]));
+}
+
 /**
- * Memoizes a selector function using reference equality.
+ * Memoizes a selector function using deep equality comparison.
  * @typeParam T - The input type.
  * @typeParam R - The return type.
  * @param selector - The selector function to memoize.
- * @returns A memoized version that returns cached result for same input reference.
- * @remarks Uses `Object.is` for equality comparison. Cache invalidates on new input reference.
+ * @returns A memoized version that returns cached result for equal input values.
+ * @remarks Uses deep equality for comparison. Cache invalidates when input values change structurally.
  */
 export function memoize<T extends object, R>(selector: (input: T) => R): (input: T) => R {
   let lastInput: T | undefined;
   let lastResult: R | undefined;
 
   return (input: T): R => {
-    if (lastInput !== undefined && Object.is(input, lastInput)) {
+    if (lastInput !== undefined && deepEqual(input, lastInput)) {
       return lastResult!;
     }
     lastInput = input;
