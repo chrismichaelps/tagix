@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/tagix-logo.svg" alt="Tagix Logo" width="50%" />
+  <img src="public/tagix-logo.svg" alt="Tagix Logo" height="128" />
 </p>
 
 <p align="center">
-  A state management library for TypeScript built on functional programming primitives.
+  <strong>Tagix</strong> A state management library for TypeScript built on functional programming primitives.
 </p>
 </p>
 
