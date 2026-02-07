@@ -150,7 +150,7 @@ export function combineSelectors<T extends object, R1, R2, R3>(
   return (state) => [selector1(state), selector2(state)];
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (a === null || b === null) return false;
   if (typeof a !== typeof b) return false;

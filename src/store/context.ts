@@ -25,6 +25,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import type { TagixStore } from "./core";
 import { isFunction, isRecord } from "../lib/Data/predicate";
 import { none, some, type Option } from "../lib/Data/option";
+import { deepEqual } from "./selectors";
 
 /**
  * Unique identifier for context entries and subcontexts.
@@ -201,22 +202,26 @@ export class TagixContext<S extends { readonly _tag: string }> {
    * @param callback - Function called with selected value on state changes.
    * @returns Unsubscribe function.
    * @throws {Error} If context is disposed.
-   * @remarks Callback is invoked immediately with current value, then on each state change.
+   * @remarks Callback is invoked immediately with current value, then on each state change where selected value differs.
    */
   select<T>(selector: (state: S) => T, callback: (value: T) => void): () => void {
     if (this.disposed) {
       throw new Error("Cannot select on disposed context");
     }
 
+    let lastSelected: T | undefined;
+
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
+      if (lastSelected !== undefined && deepEqual(selected, lastSelected)) {
+        return;
+      }
+      lastSelected = selected;
       callback(selected);
     };
 
-    // Call immediately with current state
     wrappedCallback(this.getCurrent());
 
-    // Track subscription for disposal and _notifyChange notifications
     const subscriptionId = Symbol("select");
     this.subscriptions.set(subscriptionId, {
       entry: this.rootEntry,
