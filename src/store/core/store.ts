@@ -505,8 +505,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private notifySubscribers(): void {
+    const currentState = this.state;
     for (const subscriber of this.subscribers) {
-      subscriber(this.state);
+      try {
+        subscriber(currentState);
+      } catch (error) {
+        this.recordError(error);
+      }
     }
   }
 
@@ -516,7 +521,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns Unsubscribe function to remove the callback.
    */
   subscribe(callback: SubscribeCallback<S>): () => void {
-    callback(this.state);
+    try {
+      callback(this.state);
+    } catch (error) {
+      this.recordError(error);
+    }
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
