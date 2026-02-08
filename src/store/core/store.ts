@@ -99,6 +99,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly _validStateTags: Set<string>;
   private readonly _dispatchMiddleware: (action: Action | AsyncAction) => boolean;
   private _currentPayload: unknown = undefined;
+  private _errorTimestampCounter: number = 0;
 
   constructor(
     initialState: S,
@@ -471,7 +472,8 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private recordError(error: unknown): void {
-    const timestamp = Date.now();
+    this._errorTimestampCounter++;
+    const timestamp = Date.now() * 1000 + (this._errorTimestampCounter % 1000);
     this._errorHistory.set(timestamp, error);
 
     if (isTagixError(error)) {
@@ -505,8 +507,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private notifySubscribers(): void {
+    const currentState = this.state;
     for (const subscriber of this.subscribers) {
-      subscriber(this.state);
+      try {
+        subscriber(currentState);
+      } catch (error) {
+        this.recordError(error);
+      }
     }
   }
 
@@ -516,7 +523,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns Unsubscribe function to remove the callback.
    */
   subscribe(callback: SubscribeCallback<S>): () => void {
-    callback(this.state);
+    try {
+      callback(this.state);
+    } catch (error) {
+      this.recordError(error);
+    }
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
