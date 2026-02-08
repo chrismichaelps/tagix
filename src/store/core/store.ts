@@ -25,17 +25,17 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { isFunction } from "../../lib/Data/predicate";
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
-import type { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
-import type {
+import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
+import {
   StoreConfig,
   Action,
   AsyncAction,
   SubscribeCallback,
-  MiddlewareContext,
   isAsyncAction,
+  MiddlewareContext,
 } from "../types";
 import { DEFAULT_CONFIG, ACTION_TYPE_PREFIX } from "../constants";
-import { StateTransitionError, ActionNotFoundError } from "../error";
+import { StateTransitionError, ActionNotFoundError, InvalidActionError } from "../error";
 import {
   getErrorCategory,
   getErrorInfo,
@@ -338,7 +338,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private _dispatchAction(action: Action | AsyncAction, _payload: unknown): void | Promise<void> {
-    if ("effect" in action) {
+    const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
+    if (invalidAsyncAction) {
+      throw new InvalidActionError(invalidAsyncAction);
+    }
+
+    if (isAsyncAction(action)) {
       const asyncAction = action as unknown as AsyncAction<unknown, S, unknown>;
       (asyncAction as unknown as Record<string, unknown>).payload = _payload;
       this._currentPayload = _payload;
@@ -362,12 +367,41 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private _executeAction(action: Action | AsyncAction): void {
-    if ("effect" in action) {
+    const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
+    if (invalidAsyncAction) {
+      throw new InvalidActionError(invalidAsyncAction);
+    }
+
+    if (isAsyncAction(action)) {
       return;
     }
 
     const syncAction = action as any as Action<any, S>;
     this.handleAction(syncAction, this._currentPayload as any);
+  }
+
+  private _getInvalidAsyncActionInfo(
+    action: Action | AsyncAction
+  ): { action: string; reason: string; message: string } | null {
+    if (action === null || typeof action !== "object") {
+      return null;
+    }
+
+    const obj = action;
+    if (!("effect" in obj)) {
+      return null;
+    }
+
+    if (isAsyncAction(action)) {
+      return null;
+    }
+
+    const actionType = typeof obj.type === "string" ? obj.type : "unknown";
+    return {
+      action: actionType,
+      reason: "effect property must be a function",
+      message: `Invalid async action '${actionType}': effect property must be a function`,
+    };
   }
 
   private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {

@@ -122,12 +122,25 @@ export function isAction(value: unknown): value is Action {
 }
 
 /**
- * Type guard to check if a value is a Tagix AsyncAction.
+ * Type guard to check if a value is an AsyncAction.
  * @param value - Value to check.
- * @returns True if value is an AsyncAction.
+ * @returns True if value is an AsyncAction with valid structure.
  */
 export function isAsyncAction(value: unknown): value is AsyncAction {
-  return typeof value === "object" && value !== null && "type" in value && "effect" in value;
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  const action = value as Record<string, unknown>;
+
+  const hasType = typeof action.type === "string" && action.type.length > 0;
+  const hasEffect = "effect" in action && typeof action.effect === "function";
+
+  if (!hasType || !hasEffect) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

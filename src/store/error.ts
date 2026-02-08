@@ -42,6 +42,12 @@ export const MissingHandlerError = TaggedError(ERROR_NAMES.MISSING_HANDLER);
 export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
 
 /**
+ * Thrown when an action object is malformed or missing required properties.
+ * @remarks Catches issues like invalid effect function, missing state/onSuccess/onError handlers.
+ */
+export const InvalidActionError = TaggedError(ERROR_NAMES.INVALID_ACTION);
+
+/**
  * Thrown when payload validation fails.
  * @remarks Use `validatePayload` guard to trigger this error.
  */
@@ -74,6 +80,7 @@ export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
+export type InvalidActionError = InstanceType<typeof InvalidActionError>;
 export type InvalidPayloadError = InstanceType<typeof InvalidPayloadError>;
 export type NonExhaustiveMatchError = InstanceType<typeof NonExhaustiveMatchError>;
 export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
@@ -88,6 +95,7 @@ export type TagixError =
   | StateTransitionError
   | MissingHandlerError
   | ActionNotFoundError
+  | InvalidActionError
   | InvalidPayloadError
   | NonExhaustiveMatchError
   | RequiredPayloadError
