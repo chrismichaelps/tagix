@@ -117,7 +117,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
   }
 
   private _notifyChange(newState: S): void {
-    this.rootEntry.value = newState;
+    this.rootEntry.value = { ...newState };
 
     for (const sub of this.subscriptions.values()) {
       try {
@@ -133,6 +133,8 @@ export class TagixContext<S extends { readonly _tag: string }> {
   }
 
   private _propagateChange(parentState: S): void {
+    this.rootEntry.value = { ...parentState };
+
     for (const sub of this.subscriptions.values()) {
       try {
         sub.callback(parentState);
@@ -354,7 +356,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
    * Merges state from another context into this context.
    * @param other - The context to merge from.
    * @throws {Error} If either context is disposed.
-   * @remarks Uses Object.assign to merge state properties. Notifies subscribers after merge.
+   * @remarks Creates a new state object by spreading properties. Notifies subscribers after merge.
    */
   merge(other: TagixContext<S>): void {
     if (this.disposed || other.disposed) {
@@ -366,7 +368,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
 
     if (isRecord(currentState) && isRecord(otherState)) {
       const mergedState = { ...currentState, ...otherState } as S;
-      Object.assign(this.rootEntry.value, mergedState);
+      this.rootEntry.value = { ...mergedState };
       this._notifyChange(this.getCurrent());
     }
   }
