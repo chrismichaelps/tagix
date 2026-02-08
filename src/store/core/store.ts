@@ -99,6 +99,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly _validStateTags: Set<string>;
   private readonly _dispatchMiddleware: (action: Action | AsyncAction) => boolean;
   private _currentPayload: unknown = undefined;
+  private _errorTimestampCounter: number = 0;
 
   constructor(
     initialState: S,
@@ -471,7 +472,8 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private recordError(error: unknown): void {
-    const timestamp = Date.now();
+    this._errorTimestampCounter++;
+    const timestamp = Date.now() * 1000 + (this._errorTimestampCounter % 1000);
     this._errorHistory.set(timestamp, error);
 
     if (isTagixError(error)) {
