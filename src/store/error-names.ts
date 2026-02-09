@@ -38,6 +38,8 @@ export const ERROR_NAMES = {
   UNEXPECTED_STATE: "UnexpectedStateError",
   CONTEXT_DISPOSED: "ContextDisposedError",
   TEST: "TestError",
+  OPTION_NONE: "OptionNoneError",
+  ABSURD: "AbsurdError",
 } as const;
 
 /**
@@ -61,6 +63,8 @@ export const ERROR_CODES = {
   UNEXPECTED_STATE: 1010,
   CONTEXT_DISPOSED: 2001,
   TEST: 9999,
+  OPTION_NONE: 3001,
+  ABSURD: 4001,
 } as const;
 /**
  * Union type of all error codes.

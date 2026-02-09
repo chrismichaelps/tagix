@@ -89,6 +89,18 @@ export const ContextDisposedError = TaggedError(ERROR_NAMES.CONTEXT_DISPOSED);
  */
 export const TestError = TaggedError(ERROR_NAMES.TEST);
 
+/**
+ * Thrown when attempting to unwrap a None value.
+ * @remarks Use `unwrap` or `unwrapOr` to safely access Option values.
+ */
+export const OptionNoneError = TaggedError(ERROR_NAMES.OPTION_NONE);
+
+/**
+ * Thrown when an absurd/unreachable condition is met.
+ * @remarks This should never be called and indicates a logical error in exhaustive pattern matching.
+ */
+export const AbsurdError = TaggedError(ERROR_NAMES.ABSURD);
+
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
@@ -100,6 +112,8 @@ export type PayloadValidationError = InstanceType<typeof PayloadValidationError>
 export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
 export type ContextDisposedError = InstanceType<typeof ContextDisposedError>;
 export type TestError = InstanceType<typeof TestError>;
+export type OptionNoneError = InstanceType<typeof OptionNoneError>;
+export type AbsurdError = InstanceType<typeof AbsurdError>;
 
 /**
  * Union type of all Tagix error instances.
@@ -116,4 +130,6 @@ export type TagixError =
   | PayloadValidationError
   | UnexpectedStateError
   | ContextDisposedError
-  | TestError;
+  | TestError
+  | OptionNoneError
+  | AbsurdError;

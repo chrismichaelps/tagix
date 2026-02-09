@@ -1,5 +1,7 @@
 // https://gist.github.com/chrismichaelps/c0a8b3ea083ad2e01357f4f2990bba9a
 
+import { AbsurdError } from "../../store/error";
+
 export interface LazyArg<A> {
   (): A;
 }
@@ -23,7 +25,7 @@ export const constVoid: LazyArg<void> = constUndefined;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const absurd = <A>(_value: never): A => {
-  throw new Error("Called `absurd` function which should be uncallable");
+  throw new AbsurdError({ message: "Called `absurd` function which should be uncallable" });
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
