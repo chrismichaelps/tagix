@@ -354,7 +354,7 @@ describe("createAsyncAction", () => {
         .state((s) => s)
         .effect(async () => {
           const response = await fetch(`https://jsonplaceholder.typicode.com/users/${id}`);
-      if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
+          if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
           return response.json();
         })
         .onSuccess((s, data) => ({ ...s, [`user${id}`]: data }))
