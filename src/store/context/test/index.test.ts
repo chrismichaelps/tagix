@@ -26,6 +26,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createStore, createAction, createContext, taggedEnum } from "../../index";
 import { isSome, isNone, unwrap } from "../../../lib/Data/option";
 import { getValue } from "../../test/utils";
+import { TestError } from "../../error";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -504,7 +505,7 @@ describe("TagixContext", () => {
       const failingAction = createAction<Record<string, never>, CounterStateType>("Fail")
         .withPayload({})
         .withState(() => {
-          throw new Error("Test error");
+          throw new TestError({ message: "Test error" });
         });
 
       store.register("Fail", failingAction);

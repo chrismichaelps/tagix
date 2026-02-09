@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createStore, createAction, createAsyncAction, taggedEnum } from "../../index";
+import { TestError } from "../../error";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -216,7 +217,7 @@ describe("createAsyncAction", () => {
     const failingAction = createAsyncAction<undefined, CounterStateType, unknown>("FailingAPI")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
-        throw new Error("API failed");
+        throw new TestError({ message: "API failed" });
       })
       .onSuccess((s, r) => ({ ...s, _tag: "Ready", value: 10 }))
       .onError((s, error) => {
@@ -244,7 +245,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/users");
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -280,7 +281,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/1");
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -316,7 +317,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/99999");
-        if (!response.ok) throw new Error(`HTTP ${response.status}: Not Found`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}: Not Found` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -353,7 +354,7 @@ describe("createAsyncAction", () => {
         .state((s) => s)
         .effect(async () => {
           const response = await fetch(`https://jsonplaceholder.typicode.com/users/${id}`);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
           return response.json();
         })
         .onSuccess((s, data) => ({ ...s, [`user${id}`]: data }))
@@ -387,7 +388,7 @@ describe("createAsyncAction", () => {
       .effect(async () => {
         attempts++;
         if (attempts < 3) {
-          throw new Error("Temporary failure");
+          throw new TestError({ message: "Temporary failure" });
         }
         return "success";
       })
@@ -441,7 +442,7 @@ describe("createAsyncAction", () => {
           }),
           headers: { "Content-type": "application/json; charset=UTF-8" },
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -486,7 +487,7 @@ describe("createAsyncAction", () => {
           }),
           headers: { "Content-type": "application/json; charset=UTF-8" },
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -526,7 +527,7 @@ describe("createAsyncAction", () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/posts/1", {
           method: "DELETE",
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return { success: true };
       })
       .onSuccess((s, data) => ({
@@ -580,7 +581,7 @@ describe("createAsyncAction", () => {
     const riskyFetch = createAsyncAction<undefined, CounterStateType, unknown>("RiskyFetch")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
-        throw new Error("Request failed");
+        throw new TestError({ message: "Request failed" });
       })
       .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
       .onError((s, error) => {
@@ -612,7 +613,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/todos?_limit=5");
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -648,7 +649,7 @@ describe("createAsyncAction", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         const response = await fetch("https://jsonplaceholder.typicode.com/comments?postId=1");
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new TestError({ message: `HTTP ${response.status}` });
         return response.json();
       })
       .onSuccess((s, data) => ({
@@ -688,7 +689,7 @@ describe("createAsyncAction - Retry Logic", () => {
       .effect(async () => {
         attempts++;
         if (attempts < 3) {
-          throw new Error("Temporary failure");
+          throw new TestError({ message: "Temporary failure" });
         }
         return "success";
       })
@@ -820,7 +821,7 @@ describe("Async Action - State Freshness", () => {
     const riskyFetch = createAsyncAction<undefined, CounterStateType, unknown>("RiskyFetch")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
-        throw new Error("Request failed");
+        throw new TestError({ message: "Request failed" });
       })
       .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
       .onError((s, error) => {
@@ -971,7 +972,7 @@ describe("Dispatch API", () => {
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
         attempts++;
-        if (attempts < 3) throw new Error("Failed");
+        if (attempts < 3) throw new TestError({ message: "Failed" });
         return "success";
       })
       .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: attempts }))
@@ -993,7 +994,7 @@ describe("Dispatch API", () => {
     const riskyFetch = createAsyncAction<void, CounterStateType, string>("RiskyFetch")
       .state((s) => ({ ...s, _tag: "Loading" }))
       .effect(async () => {
-        throw new Error("Network error");
+        throw new TestError({ message: "Network error" });
       })
       .onSuccess((s, data) => ({ ...s, _tag: "Ready", value: 10 }))
       .onError((s, error) => ({

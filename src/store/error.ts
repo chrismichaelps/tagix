@@ -83,6 +83,12 @@ export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
  */
 export const ContextDisposedError = TaggedError(ERROR_NAMES.CONTEXT_DISPOSED);
 
+/**
+ * Test error for consistent error testing.
+ * @remarks Used in test files for predictable error handling.
+ */
+export const TestError = TaggedError(ERROR_NAMES.TEST);
+
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
@@ -93,6 +99,7 @@ export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
 export type PayloadValidationError = InstanceType<typeof PayloadValidationError>;
 export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
 export type ContextDisposedError = InstanceType<typeof ContextDisposedError>;
+export type TestError = InstanceType<typeof TestError>;
 
 /**
  * Union type of all Tagix error instances.
@@ -108,4 +115,5 @@ export type TagixError =
   | RequiredPayloadError
   | PayloadValidationError
   | UnexpectedStateError
-  | ContextDisposedError;
+  | ContextDisposedError
+  | TestError;
