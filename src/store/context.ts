@@ -26,6 +26,7 @@ import type { TagixStore } from "./core";
 import { isFunction, isRecord } from "../lib/Data/predicate";
 import { none, some, type Option } from "../lib/Data/option";
 import { deepEqual } from "./selectors";
+import { ContextDisposedError } from "./error";
 
 /**
  * Unique identifier for context entries and subcontexts.
@@ -177,7 +178,10 @@ export class TagixContext<S extends { readonly _tag: string }> {
    */
   provide<T>(key: ContextId, value: T | ((parentValue: S) => T)): TagixContext<S> {
     if (this.disposed) {
-      throw new ContextDisposedError({ action: "createSubcontext", message: "Cannot create subcontext on disposed context" });
+      throw new ContextDisposedError({
+        action: "createSubcontext",
+        message: "Cannot create subcontext on disposed context",
+      });
     }
 
     const parentValue = this.getCurrent();
@@ -208,7 +212,10 @@ export class TagixContext<S extends { readonly _tag: string }> {
    */
   select<T>(selector: (state: S) => T, callback: (value: T) => void): () => void {
     if (this.disposed) {
-      throw new ContextDisposedError({ action: "select", message: "Cannot select on disposed context" });
+      throw new ContextDisposedError({
+        action: "select",
+        message: "Cannot select on disposed context",
+      });
     }
 
     let lastSelected: T | undefined;
@@ -249,7 +256,10 @@ export class TagixContext<S extends { readonly _tag: string }> {
     unsubscribe: () => void;
   } {
     if (this.disposed) {
-      throw new ContextDisposedError({ action: "select", message: "Cannot select on disposed context" });
+      throw new ContextDisposedError({
+        action: "select",
+        message: "Cannot select on disposed context",
+      });
     }
 
     let resolve: (value: T) => void;
@@ -513,7 +523,10 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
 
   provide<U>(key: ContextId, val: U | ((parentValue: S) => U)): TagixContext<S> {
     if (this.disposed) {
-      throw new ContextDisposedError({ action: "createSubcontext", message: "Cannot create subcontext on disposed context" });
+      throw new ContextDisposedError({
+        action: "createSubcontext",
+        message: "Cannot create subcontext on disposed context",
+      });
     }
 
     const resolvedValue = isFunction(val) ? val(this.value) : val;
@@ -539,7 +552,10 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
 
   select<U>(selector: (state: S) => U, callback: (value: U) => void): () => void {
     if (this.disposed) {
-      throw new ContextDisposedError({ action: "select", message: "Cannot select on disposed context" });
+      throw new ContextDisposedError({
+        action: "select",
+        message: "Cannot select on disposed context",
+      });
     }
 
     const wrappedCallback = (state: unknown): void => {

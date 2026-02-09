@@ -36,6 +36,7 @@ export const ERROR_NAMES = {
   REQUIRED_PAYLOAD: "RequiredPayloadError",
   PAYLOAD_VALIDATION: "PayloadValidationError",
   UNEXPECTED_STATE: "UnexpectedStateError",
+  CONTEXT_DISPOSED: "ContextDisposedError",
 } as const;
 
 /**
@@ -57,6 +58,7 @@ export const ERROR_CODES = {
   REQUIRED_PAYLOAD: 1008,
   PAYLOAD_VALIDATION: 1009,
   UNEXPECTED_STATE: 1010,
+  CONTEXT_DISPOSED: 2001,
 } as const;
 /**
  * Union type of all error codes.

@@ -77,6 +77,12 @@ export const PayloadValidationError = TaggedError(ERROR_NAMES.PAYLOAD_VALIDATION
  */
 export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
 
+/**
+ * Thrown when attempting to perform operations on a disposed context.
+ * @remarks Contexts should be properly disposed and not reused after disposal.
+ */
+export const ContextDisposedError = TaggedError(ERROR_NAMES.CONTEXT_DISPOSED);
+
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
@@ -86,6 +92,7 @@ export type NonExhaustiveMatchError = InstanceType<typeof NonExhaustiveMatchErro
 export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
 export type PayloadValidationError = InstanceType<typeof PayloadValidationError>;
 export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
+export type ContextDisposedError = InstanceType<typeof ContextDisposedError>;
 
 /**
  * Union type of all Tagix error instances.
@@ -100,4 +107,5 @@ export type TagixError =
   | NonExhaustiveMatchError
   | RequiredPayloadError
   | PayloadValidationError
-  | UnexpectedStateError;
+  | UnexpectedStateError
+  | ContextDisposedError;
