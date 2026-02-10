@@ -3,7 +3,7 @@ category: State Management
 ---
 
 <p align="center">
-  <img src="../../../public/tagix-logo.png" alt="Tagix Logo" width="50%" />
+<img src="../../../public/tagix-logo.svg" alt="Tagix Logo" height="128" />
 </p>
 
 # createAsyncAction
