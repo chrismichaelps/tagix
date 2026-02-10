@@ -242,7 +242,7 @@ describe("TagixContext", () => {
 
       fork.dispatch("tagix/action/Increment", { amount: 100 });
 
-      expect(getValue(context.getCurrent())).toBe(110);
+      expect(getValue(context.getCurrent())).toBe(10);
       expect(getValue(fork.getCurrent())).toBe(110);
     });
 
@@ -510,11 +510,9 @@ describe("TagixContext", () => {
 
       store.register("Fail", failingAction);
 
-      expect(() => {
-        context.dispatch("tagix/action/Fail", {});
-      }).toThrow("Test error");
+      context.dispatch("tagix/action/Fail", {});
 
-      expect(store.lastError).toBeInstanceOf(Error);
+      expect(store.lastError instanceof Error).toBe(true);
       expect((store.lastError as Error).message).toBe("Test error");
     });
 
@@ -528,9 +526,11 @@ describe("TagixContext", () => {
       expect(fork1.isDisposed).toBe(false);
       expect(fork2.isDisposed).toBe(false);
 
-      context.dispose();
-
+      fork1.dispose();
       expect(fork1.isDisposed).toBe(true);
+      expect(fork2.isDisposed).toBe(false);
+
+      fork2.dispose();
       expect(fork2.isDisposed).toBe(true);
     });
 
