@@ -30,11 +30,16 @@ export const ERROR_NAMES = {
   STATE_TRANSITION: "StateTransitionError",
   MISSING_HANDLER: "MissingHandlerError",
   ACTION_NOT_FOUND: "ActionNotFoundError",
+  INVALID_ACTION: "InvalidActionError",
   INVALID_PAYLOAD: "InvalidPayloadError",
   NON_EXHAUSTIVE_MATCH: "NonExhaustiveMatchError",
   REQUIRED_PAYLOAD: "RequiredPayloadError",
   PAYLOAD_VALIDATION: "PayloadValidationError",
   UNEXPECTED_STATE: "UnexpectedStateError",
+  CONTEXT_DISPOSED: "ContextDisposedError",
+  TEST: "TestError",
+  OPTION_NONE: "OptionNoneError",
+  ABSURD: "AbsurdError",
 } as const;
 
 /**
@@ -50,11 +55,16 @@ export const ERROR_CODES = {
   STATE_TRANSITION: 1001,
   MISSING_HANDLER: 1002,
   ACTION_NOT_FOUND: 1004,
+  INVALID_ACTION: 1011,
   INVALID_PAYLOAD: 1005,
   NON_EXHAUSTIVE_MATCH: 1007,
   REQUIRED_PAYLOAD: 1008,
   PAYLOAD_VALIDATION: 1009,
   UNEXPECTED_STATE: 1010,
+  CONTEXT_DISPOSED: 2001,
+  TEST: 9999,
+  OPTION_NONE: 3001,
+  ABSURD: 4001,
 } as const;
 /**
  * Union type of all error codes.
@@ -119,13 +129,20 @@ export const getErrorInfo = (error: unknown): TagixErrorObject | null => {
  */
 export const ERROR_CATEGORIES = {
   STATE: [ERROR_CODES.STATE_TRANSITION, ERROR_CODES.UNEXPECTED_STATE] as const,
-  ACTION: [ERROR_CODES.ACTION_NOT_FOUND, ERROR_CODES.MISSING_HANDLER] as const,
+  ACTION: [
+    ERROR_CODES.ACTION_NOT_FOUND,
+    ERROR_CODES.MISSING_HANDLER,
+    ERROR_CODES.INVALID_ACTION,
+  ] as const,
   PAYLOAD: [
     ERROR_CODES.INVALID_PAYLOAD,
     ERROR_CODES.REQUIRED_PAYLOAD,
     ERROR_CODES.PAYLOAD_VALIDATION,
   ] as const,
   MATCH: [ERROR_CODES.NON_EXHAUSTIVE_MATCH] as const,
+  CONTEXT: [ERROR_CODES.CONTEXT_DISPOSED] as const,
+  OPTION: [ERROR_CODES.OPTION_NONE] as const,
+  ABSURD: [ERROR_CODES.ABSURD] as const,
 } as const;
 
 /**
@@ -144,6 +161,7 @@ const recoverableCategoriesSet: ReadonlySet<ErrorCategory> = new Set([
   "STATE",
   "ACTION",
   "PAYLOAD",
+  "CONTEXT",
 ]);
 
 /**

@@ -25,17 +25,17 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { isFunction } from "../../lib/Data/predicate";
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
-import type { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
-import type {
+import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
+import {
   StoreConfig,
   Action,
   AsyncAction,
   SubscribeCallback,
-  MiddlewareContext,
   isAsyncAction,
+  MiddlewareContext,
 } from "../types";
 import { DEFAULT_CONFIG, ACTION_TYPE_PREFIX } from "../constants";
-import { StateTransitionError, ActionNotFoundError } from "../error";
+import { StateTransitionError, ActionNotFoundError, InvalidActionError } from "../error";
 import {
   getErrorCategory,
   getErrorInfo,
@@ -99,6 +99,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly _validStateTags: Set<string>;
   private readonly _dispatchMiddleware: (action: Action | AsyncAction) => boolean;
   private _currentPayload: unknown = undefined;
+  private _errorTimestampCounter: number = 0;
 
   constructor(
     initialState: S,
@@ -196,6 +197,20 @@ export class TagixStore<S extends { readonly _tag: string }> {
    */
   get registeredActions(): readonly string[] {
     return Array.from(this.actions.keys());
+  }
+
+  /**
+   * Get the state constructor used by this store.
+   */
+  getStateConstructor(): TaggedEnumConstructor<S> {
+    return this.stateConstructor;
+  }
+
+  /**
+   * Get all registered actions.
+   */
+  getActions(): ReadonlyMap<string, Action | AsyncAction> {
+    return new Map(this.actions);
   }
 
   /**
@@ -337,7 +352,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private _dispatchAction(action: Action | AsyncAction, _payload: unknown): void | Promise<void> {
-    if ("effect" in action) {
+    const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
+    if (invalidAsyncAction) {
+      throw new InvalidActionError(invalidAsyncAction);
+    }
+
+    if (isAsyncAction(action)) {
       const asyncAction = action as unknown as AsyncAction<unknown, S, unknown>;
       (asyncAction as unknown as Record<string, unknown>).payload = _payload;
       this._currentPayload = _payload;
@@ -361,12 +381,41 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private _executeAction(action: Action | AsyncAction): void {
-    if ("effect" in action) {
+    const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
+    if (invalidAsyncAction) {
+      throw new InvalidActionError(invalidAsyncAction);
+    }
+
+    if (isAsyncAction(action)) {
       return;
     }
 
     const syncAction = action as any as Action<any, S>;
     this.handleAction(syncAction, this._currentPayload as any);
+  }
+
+  private _getInvalidAsyncActionInfo(
+    action: Action | AsyncAction
+  ): { action: string; reason: string; message: string } | null {
+    if (action === null || typeof action !== "object") {
+      return null;
+    }
+
+    const obj = action;
+    if (!("effect" in obj)) {
+      return null;
+    }
+
+    if (isAsyncAction(action)) {
+      return null;
+    }
+
+    const actionType = typeof obj.type === "string" ? obj.type : "unknown";
+    return {
+      action: actionType,
+      reason: "effect property must be a function",
+      message: `Invalid async action '${actionType}': effect property must be a function`,
+    };
   }
 
   private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {
@@ -378,7 +427,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
     match(result, {
       onLeft: (error: Error) => {
         this.recordError(error);
-        throw error;
       },
       onRight: (newState: S) => {
         if (this.config.strict && !this._validStateTags.has(newState._tag)) {
@@ -471,7 +519,8 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private recordError(error: unknown): void {
-    const timestamp = Date.now();
+    this._errorTimestampCounter++;
+    const timestamp = Date.now() * 1000 + (this._errorTimestampCounter % 1000);
     this._errorHistory.set(timestamp, error);
 
     if (isTagixError(error)) {
@@ -505,8 +554,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private notifySubscribers(): void {
+    const currentState = this.state;
     for (const subscriber of this.subscribers) {
-      subscriber(this.state);
+      try {
+        subscriber(currentState);
+      } catch (error) {
+        this.recordError(error);
+      }
     }
   }
 
@@ -516,7 +570,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns Unsubscribe function to remove the callback.
    */
   subscribe(callback: SubscribeCallback<S>): () => void {
-    callback(this.state);
+    try {
+      callback(this.state);
+    } catch (error) {
+      this.recordError(error);
+    }
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
   }
@@ -584,5 +642,26 @@ export class TagixStore<S extends { readonly _tag: string }> {
           ? S[K]
           : unknown | undefined)
       : (undefined as K extends keyof S ? S[K] : unknown | undefined);
+  }
+
+  /**
+   * Directly sets the store state.
+   * @param newState - The new state to set.
+   * @param notify - Whether to notify subscribers of the change (default: true).
+   * @remarks This method bypasses action dispatch and validation. Use with caution.
+   * Primarily intended for restoring state from forks or persisted state.
+   */
+  setState(newState: S, notify: boolean = true): void {
+    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
+      throw new StateTransitionError({
+        expected: Array.from(this._validStateTags),
+        actual: newState._tag,
+        action: "setState",
+      });
+    }
+    this.state = newState;
+    if (notify) {
+      this.notifySubscribers();
+    }
   }
 }

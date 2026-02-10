@@ -1,5 +1,7 @@
 // https://gist.github.com/chrismichaelps/c0a8b3ea083ad2e01357f4f2990bba9a
 
+import { OptionNoneError } from "../../store/error";
+
 const TypeId = Symbol.for("Option");
 type TypeId = typeof TypeId;
 
@@ -70,14 +72,14 @@ export const tap = <A>(option: Option<A>, f: (a: A) => void): Option<A> => {
 
 export const unwrap = <A>(option: Option<A>): A => {
   if (isNone(option)) {
-    throw new Error("Cannot unwrap None");
+    throw new OptionNoneError({ message: "Cannot unwrap None" });
   }
   return (option as Some<A>).value;
 };
 
 export const expect = <A>(option: Option<A>, message: string): A => {
   if (isNone(option)) {
-    throw new Error(message);
+    throw new OptionNoneError({ message });
   }
   return (option as Some<A>).value;
 };

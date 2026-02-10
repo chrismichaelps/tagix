@@ -41,5 +41,7 @@ export {
   getOrDefault,
 } from "./selectors";
 export { createLoggerMiddleware } from "./middlewares/logger";
+export { deriveStore, DerivedStore } from "./derived";
+export type { DerivedStoreConfig } from "./derived";
 
 export * from "../lib/Data";

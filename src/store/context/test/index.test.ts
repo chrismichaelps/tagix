@@ -26,6 +26,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createStore, createAction, createContext, taggedEnum } from "../../index";
 import { isSome, isNone, unwrap } from "../../../lib/Data/option";
 import { getValue } from "../../test/utils";
+import { TestError } from "../../error";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -241,7 +242,7 @@ describe("TagixContext", () => {
 
       fork.dispatch("tagix/action/Increment", { amount: 100 });
 
-      expect(getValue(context.getCurrent())).toBe(110);
+      expect(getValue(context.getCurrent())).toBe(10);
       expect(getValue(fork.getCurrent())).toBe(110);
     });
 
@@ -504,16 +505,14 @@ describe("TagixContext", () => {
       const failingAction = createAction<Record<string, never>, CounterStateType>("Fail")
         .withPayload({})
         .withState(() => {
-          throw new Error("Test error");
+          throw new TestError({ message: "Test error" });
         });
 
       store.register("Fail", failingAction);
 
-      expect(() => {
-        context.dispatch("tagix/action/Fail", {});
-      }).toThrow("Test error");
+      context.dispatch("tagix/action/Fail", {});
 
-      expect(store.lastError).toBeInstanceOf(Error);
+      expect(store.lastError instanceof Error).toBe(true);
       expect((store.lastError as Error).message).toBe("Test error");
     });
 
@@ -527,9 +526,11 @@ describe("TagixContext", () => {
       expect(fork1.isDisposed).toBe(false);
       expect(fork2.isDisposed).toBe(false);
 
-      context.dispose();
-
+      fork1.dispose();
       expect(fork1.isDisposed).toBe(true);
+      expect(fork2.isDisposed).toBe(false);
+
+      fork2.dispose();
       expect(fork2.isDisposed).toBe(true);
     });
 

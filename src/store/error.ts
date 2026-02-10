@@ -42,6 +42,12 @@ export const MissingHandlerError = TaggedError(ERROR_NAMES.MISSING_HANDLER);
 export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
 
 /**
+ * Thrown when an action object is malformed or missing required properties.
+ * @remarks Catches issues like invalid effect function, missing state/onSuccess/onError handlers.
+ */
+export const InvalidActionError = TaggedError(ERROR_NAMES.INVALID_ACTION);
+
+/**
  * Thrown when payload validation fails.
  * @remarks Use `validatePayload` guard to trigger this error.
  */
@@ -71,14 +77,43 @@ export const PayloadValidationError = TaggedError(ERROR_NAMES.PAYLOAD_VALIDATION
  */
 export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
 
+/**
+ * Thrown when attempting to perform operations on a disposed context.
+ * @remarks Contexts should be properly disposed and not reused after disposal.
+ */
+export const ContextDisposedError = TaggedError(ERROR_NAMES.CONTEXT_DISPOSED);
+
+/**
+ * Test error for consistent error testing.
+ * @remarks Used in test files for predictable error handling.
+ */
+export const TestError = TaggedError(ERROR_NAMES.TEST);
+
+/**
+ * Thrown when attempting to unwrap a None value.
+ * @remarks Use `unwrap` or `unwrapOr` to safely access Option values.
+ */
+export const OptionNoneError = TaggedError(ERROR_NAMES.OPTION_NONE);
+
+/**
+ * Thrown when an absurd/unreachable condition is met.
+ * @remarks This should never be called and indicates a logical error in exhaustive pattern matching.
+ */
+export const AbsurdError = TaggedError(ERROR_NAMES.ABSURD);
+
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;
 export type ActionNotFoundError = InstanceType<typeof ActionNotFoundError>;
+export type InvalidActionError = InstanceType<typeof InvalidActionError>;
 export type InvalidPayloadError = InstanceType<typeof InvalidPayloadError>;
 export type NonExhaustiveMatchError = InstanceType<typeof NonExhaustiveMatchError>;
 export type RequiredPayloadError = InstanceType<typeof RequiredPayloadError>;
 export type PayloadValidationError = InstanceType<typeof PayloadValidationError>;
 export type UnexpectedStateError = InstanceType<typeof UnexpectedStateError>;
+export type ContextDisposedError = InstanceType<typeof ContextDisposedError>;
+export type TestError = InstanceType<typeof TestError>;
+export type OptionNoneError = InstanceType<typeof OptionNoneError>;
+export type AbsurdError = InstanceType<typeof AbsurdError>;
 
 /**
  * Union type of all Tagix error instances.
@@ -88,8 +123,13 @@ export type TagixError =
   | StateTransitionError
   | MissingHandlerError
   | ActionNotFoundError
+  | InvalidActionError
   | InvalidPayloadError
   | NonExhaustiveMatchError
   | RequiredPayloadError
   | PayloadValidationError
-  | UnexpectedStateError;
+  | UnexpectedStateError
+  | ContextDisposedError
+  | TestError
+  | OptionNoneError
+  | AbsurdError;

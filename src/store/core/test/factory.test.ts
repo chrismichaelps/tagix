@@ -9,6 +9,7 @@ import {
 import { getValue } from "../../test/utils";
 import { isNotNullish } from "../../../lib/Data/predicate";
 import { isSome } from "../../../lib/Data/option";
+import { TestError } from "../../error";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -128,7 +129,7 @@ describe("Store Edge Cases", () => {
     const failAction = createAction<undefined, CounterStateType>("Fail")
       .withPayload(undefined)
       .withState(() => {
-        throw new Error("Test error");
+        throw new TestError({ message: "Test error" });
       });
 
     store.register("Fail", failAction);
@@ -149,7 +150,7 @@ describe("Store Edge Cases", () => {
     const errorAction = createAction<undefined, CounterStateType>("ErrorAction")
       .withPayload(undefined)
       .withState(() => {
-        throw new Error("Test error");
+        throw new TestError({ message: "Test error" });
       });
 
     store.register("ErrorAction", errorAction);
@@ -244,7 +245,7 @@ describe("Store Edge Cases", () => {
     const failAction = createAction<undefined, CounterStateType>("Fail")
       .withPayload(undefined)
       .withState(() => {
-        throw new Error("Test");
+        throw new TestError({ message: "Test" });
       });
 
     store.register("Fail", failAction);
