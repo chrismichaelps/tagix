@@ -23,6 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import type { TagixStore } from "./core";
+import { createStore } from "./core";
 import { isFunction, isRecord } from "../lib/Data/predicate";
 import { none, some, type Option } from "../lib/Data/option";
 import { deepEqual } from "./selectors";
@@ -75,7 +76,6 @@ export class TagixContext<S extends { readonly _tag: string }> {
   private rootEntry: ContextEntry<S>;
   private subscriptions: Map<ContextId, ContextSubscription> = new Map();
   private childContexts: Set<TagixContext<{ readonly _tag: string }>> = new Set();
-  private forkedContexts: Set<TagixContext<S>> = new Set();
   private derivedContexts: Set<DerivedContext<S, unknown>> = new Set();
   private _id: ContextId;
   private disposed = false;
@@ -351,19 +351,35 @@ export class TagixContext<S extends { readonly _tag: string }> {
   }
 
   /**
-   * Creates a forked context from a snapshot of current state.
-   * @returns A new context with state forked from current snapshot.
+   * Creates a forked context with isolated state.
+   * @returns A new context with its own store instance.
    * @throws {Error} If context is disposed.
-   * @remarks Fork shares the same store but starts from a snapshot. Changes propagate back to parent.
+   * @remarks Fork creates a completely independent copy of state. Changes to the fork do not affect the parent, and vice versa.
    */
   fork(): TagixContext<S> {
     if (this.disposed) {
       throw new ContextDisposedError({ action: "fork", message: "Cannot fork disposed context" });
     }
 
-    const forkContext = new TagixContext(this.store as TagixStore<S>, { parent: null });
+    const tagixStore = this.store as TagixStore<S>;
+    const currentState = tagixStore.stateValue;
+    const stateConstructor = tagixStore.getStateConstructor();
+    const config = tagixStore.configValue;
 
-    this.forkedContexts.add(forkContext);
+    const forkStore = createStore(currentState, stateConstructor, {
+      name: `${tagixStore.name}-fork`,
+      strict: config.strict,
+      maxErrorHistory: config.maxErrorHistory,
+      maxRetries: config.maxRetries,
+      middlewares: config.middlewares,
+    });
+
+    const actions = tagixStore.getActions();
+    for (const [type, action] of actions) {
+      forkStore.register(type.replace("tagix/action/", ""), action as any);
+    }
+
+    const forkContext = new TagixContext(forkStore, { parent: null });
 
     return forkContext;
   }
@@ -372,7 +388,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
    * Merges state from another context into this context.
    * @param other - The context to merge from.
    * @throws {Error} If either context is disposed.
-   * @remarks Creates a new state object by spreading properties. Notifies subscribers after merge.
+   * @remarks Updates this context's store state with the other context's state.
    */
   merge(other: TagixContext<S>): void {
     if (this.disposed || other.disposed) {
@@ -383,13 +399,8 @@ export class TagixContext<S extends { readonly _tag: string }> {
     }
 
     const otherState = other.getCurrent();
-    const currentState = this.getCurrent();
-
-    if (isRecord(currentState) && isRecord(otherState)) {
-      const mergedState = { ...currentState, ...otherState } as S;
-      this.rootEntry.value = { ...mergedState };
-      this._notifyChange(this.getCurrent());
-    }
+    const tagixStore = this.store as TagixStore<S>;
+    tagixStore.setState(otherState);
   }
 
   /**
@@ -471,11 +482,6 @@ export class TagixContext<S extends { readonly _tag: string }> {
     }
     this.childContexts.clear();
 
-    for (const fork of this.forkedContexts) {
-      fork.dispose();
-    }
-    this.forkedContexts.clear();
-
     for (const derived of this.derivedContexts) {
       derived.dispose();
     }
@@ -499,7 +505,6 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
   private parentContext: TagixContext<S>;
   private subscriptions: Map<ContextId, ContextSubscription> = new Map();
   private childContexts: Set<TagixContext<{ readonly _tag: string }>> = new Set();
-  private forkedContexts: Set<TagixContext<S>> = new Set();
   private disposed = false;
 
   constructor(
@@ -614,19 +619,7 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       throw new ContextDisposedError({ action: "fork", message: "Cannot fork disposed context" });
     }
 
-    const forkContext = new TagixContext(
-      {
-        stateValue: this.value,
-        name: "fork",
-        subscribe: () => () => {},
-        dispatch: () => {},
-      } as unknown as TagixStore<S>,
-      { parent: null }
-    );
-
-    this.forkedContexts.add(forkContext);
-
-    return forkContext;
+    return this.parentContext.fork();
   }
 
   dispose(): void {
@@ -641,11 +634,6 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       child.dispose();
     }
     this.childContexts.clear();
-
-    for (const fork of this.forkedContexts) {
-      fork.dispose();
-    }
-    this.forkedContexts.clear();
 
     this.disposed = true;
   }

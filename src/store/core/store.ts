@@ -200,6 +200,20 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
+   * Get the state constructor used by this store.
+   */
+  getStateConstructor(): TaggedEnumConstructor<S> {
+    return this.stateConstructor;
+  }
+
+  /**
+   * Get all registered actions.
+   */
+  getActions(): ReadonlyMap<string, Action | AsyncAction> {
+    return new Map(this.actions);
+  }
+
+  /**
    * Error code of the most recent error.
    * @returns The numeric error code, or undefined if no Tagix error occurred.
    */
@@ -413,7 +427,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
     match(result, {
       onLeft: (error: Error) => {
         this.recordError(error);
-        throw error;
       },
       onRight: (newState: S) => {
         if (this.config.strict && !this._validStateTags.has(newState._tag)) {
@@ -629,5 +642,26 @@ export class TagixStore<S extends { readonly _tag: string }> {
           ? S[K]
           : unknown | undefined)
       : (undefined as K extends keyof S ? S[K] : unknown | undefined);
+  }
+
+  /**
+   * Directly sets the store state.
+   * @param newState - The new state to set.
+   * @param notify - Whether to notify subscribers of the change (default: true).
+   * @remarks This method bypasses action dispatch and validation. Use with caution.
+   * Primarily intended for restoring state from forks or persisted state.
+   */
+  setState(newState: S, notify: boolean = true): void {
+    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
+      throw new StateTransitionError({
+        expected: Array.from(this._validStateTags),
+        actual: newState._tag,
+        action: "setState",
+      });
+    }
+    this.state = newState;
+    if (notify) {
+      this.notifySubscribers();
+    }
   }
 }
