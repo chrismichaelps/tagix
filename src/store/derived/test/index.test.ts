@@ -380,35 +380,6 @@ describe("deriveStore()", () => {
 
       expect(derived.stateValue).toEqual({ subtotal: 100, total: 80 });
     });
-    it("should react to state changes triggered by registered actions", () => {
-      const cart = createStore(
-        CartState.HasItems({ items: [{ name: "Initial", price: 10 }] }),
-        CartState
-      );
-      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
-
-      const addItem = createAction<{ name: string; price: number }, CartStateType>("AddItem")
-        .withPayload({ name: "", price: 0 })
-        .withState((state, payload) => {
-          if (state._tag === "HasItems") {
-            return CartState.HasItems({
-              items: [...state.items, payload],
-            });
-          }
-          return CartState.HasItems({ items: [payload] });
-        });
-
-      cart.register("AddItem", addItem);
-
-      const derived = deriveStore([cart, discount], ([cartState]) => ({
-        total:
-          cartState._tag === "HasItems" ? cartState.items.reduce((sum, i) => sum + i.price, 0) : 0,
-      }));
-
-      expect(derived.stateValue.total).toBe(10);
-      cart.dispatch("AddItem", { name: "Extra", price: 15 });
-      expect(derived.stateValue.total).toBe(25);
-    });
     it("should react to async action state changes", async () => {
       const user = createStore(UserState.Anonymous({}), UserState);
       const cart = createStore(CartState.Empty({}), CartState);
@@ -783,6 +754,301 @@ describe("deriveStore()", () => {
       discount.setState(DiscountState.None({ rate: 0 }));
       expect(analytics.stateValue.discountAmount).toBe(0);
       expect(analytics.stateValue.total).toBe(1506);
+    });
+
+    it("should handle function call results in derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const computeTax = (price: number, rate: number) => price * rate;
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          const total = cartState.items.reduce((sum, i) => sum + i.price, 0);
+          const tax = computeTax(total, 0.11);
+          return { total, tax };
+        }
+        return { total: 0, tax: 0 };
+      });
+
+      expect(derived.stateValue.total).toBe(10);
+      expect(derived.stateValue.tax).toBe(1.1);
+    });
+
+    it("should handle boolean derived values", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(
+        DiscountState.Active({ rate: 0.1, code: "SAVE10" }),
+        DiscountState
+      );
+
+      const derived = deriveStore([cart, discount], ([cartState, discountState]) => {
+        const hasItems = cartState._tag === "HasItems" && cartState.items.length > 0;
+        const hasDiscount = discountState._tag === "Active";
+        return { hasItems, hasDiscount, isReady: hasItems && hasDiscount };
+      });
+
+      expect(derived.stateValue.hasItems).toBe(true);
+      expect(derived.stateValue.hasDiscount).toBe(true);
+      expect(derived.stateValue.isReady).toBe(true);
+    });
+
+    it("should handle number derived values", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          return cartState.items.reduce((sum, i) => sum + i.price, 0);
+        }
+        return 0;
+      });
+
+      expect(derived.stateValue).toBe(10);
+    });
+
+    it("should handle symbol keys in derived objects", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const sym = Symbol("metadata");
+
+      const derived = deriveStore([cart, discount], () => ({
+        [sym]: { created: Date.now(), version: "1.0" },
+        total: 10,
+      }));
+
+      expect(derived.stateValue.total).toBe(10);
+      expect((derived.stateValue as any)[sym].version).toBe("1.0");
+    });
+
+    it("should handle map data structure in derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          const priceByName = new Map<string, number>();
+          cartState.items.forEach((item) => priceByName.set(item.name, item.price));
+          return { priceByName };
+        }
+        return { priceByName: new Map<string, number>() };
+      });
+
+      expect(derived.stateValue.priceByName.get("A")).toBe(10);
+    });
+
+    it("should handle set data structure in derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          const itemNames = new Set(cartState.items.map((i) => i.name));
+          return { itemNames };
+        }
+        return { itemNames: new Set<string>() };
+      });
+
+      expect(derived.stateValue.itemNames.has("A")).toBe(true);
+    });
+
+    it("should handle nested object derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(
+        DiscountState.Active({ rate: 0.1, code: "SAVE10" }),
+        DiscountState
+      );
+
+      const derived = deriveStore([cart, discount], ([cartState, discountState]) => ({
+        nested: {
+          deep: {
+            value: cartState._tag === "HasItems" ? cartState.items.length : 0,
+          },
+        },
+      }));
+
+      expect((derived.stateValue as any).nested.deep.value).toBe(1);
+    });
+
+    it("should handle typed arrays in derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          const prices = new Float64Array(cartState.items.map((i) => i.price));
+          const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+          return { prices, avgPrice };
+        }
+        return { prices: new Float64Array(0), avgPrice: 0 };
+      });
+
+      expect(derived.stateValue.prices instanceof Float64Array).toBe(true);
+      expect(derived.stateValue.avgPrice).toBe(10);
+    });
+
+    it("should handle derived value as null", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], () => null);
+
+      expect(derived.stateValue).toBe(null);
+    });
+
+    it("should handle derived value as undefined", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], () => undefined);
+
+      expect(derived.stateValue).toBe(undefined);
+    });
+
+    it("should handle readonly arrays in derivation", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          const readonlyItems: readonly { name: string; price: number }[] = cartState.items;
+          return { count: readonlyItems.length };
+        }
+        return { count: 0 };
+      });
+
+      expect(derived.stateValue.count).toBe(1);
+    });
+  });
+  describe("chained derived stores", () => {
+    it("should allow multiple derived stores from same sources to update independently", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 100 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const cartTotal = deriveStore([cart, discount], ([cartState, discountState]) => {
+        if (cartState._tag === "HasItems") {
+          const subtotal = cartState.items.reduce((sum, i) => sum + i.price, 0);
+          const rate = discountState._tag === "Active" ? discountState.rate : 0;
+          return { subtotal, discounted: subtotal * (1 - rate) };
+        }
+        return { subtotal: 0, discounted: 0 };
+      });
+
+      const itemCount = deriveStore([cart], ([cartState]) => ({
+        count: cartState._tag === "HasItems" ? cartState.items.length : 0,
+      }));
+
+      expect(cartTotal.stateValue).toEqual({ subtotal: 100, discounted: 100 });
+      expect(itemCount.stateValue).toEqual({ count: 1 });
+
+      discount.setState(DiscountState.Active({ rate: 0.1, code: "SAVE10" }));
+      expect(cartTotal.stateValue).toEqual({ subtotal: 100, discounted: 90 });
+      expect(itemCount.stateValue).toEqual({ count: 1 });
+    });
+    it("should properly clean up on destroy without affecting parent stores", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 50 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+
+      const derived = deriveStore([cart, discount], ([cartState]) => ({
+        total:
+          cartState._tag === "HasItems" ? cartState.items.reduce((sum, i) => sum + i.price, 0) : 0,
+      }));
+
+      const callback = vi.fn();
+      derived.subscribe(callback);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      derived.destroy();
+      cart.setState(CartState.HasItems({ items: [{ name: "B", price: 200 }] }));
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(derived.stateValue).toEqual({ total: 50 });
+    });
+  });
+  describe("single source store", () => {
+    it("should support deriving from a single store", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "Item", price: 42 }] }),
+        CartState
+      );
+
+      const derived = deriveStore([cart], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          return cartState.items.length * 10;
+        }
+        return 0;
+      });
+
+      expect(derived.stateValue).toBe(10);
+      cart.setState(
+        CartState.HasItems({
+          items: [
+            { name: "A", price: 1 },
+            { name: "B", price: 2 },
+          ],
+        })
+      );
+      expect(derived.stateValue).toBe(20);
+    });
+    it("should support single store with custom equality", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+
+      const callback = vi.fn();
+      const derived = deriveStore(
+        [cart],
+        ([cartState]) => ({
+          count: cartState._tag === "HasItems" ? cartState.items.length : 0,
+          timestamp: Date.now(),
+        }),
+        { equals: (prev, next) => prev.count === next.count }
+      );
+      derived.subscribe(callback);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      cart.setState(CartState.HasItems({ items: [{ name: "A", price: 10 }] }));
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 });

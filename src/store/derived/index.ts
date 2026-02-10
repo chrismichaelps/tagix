@@ -216,6 +216,19 @@ export class DerivedStore<R> {
 }
 
 /**
+ * Creates a reactive derived store from a single source store.
+ * @param source - A single `TagixStore` instance.
+ * @param deriver - Pure function that computes derived state from source state.
+ * @param config  - Optional configuration (custom equality function).
+ * @returns A new `DerivedStore` instance.
+ */
+export function deriveStore<S extends TaggedState, R>(
+  sources: [TagixStore<S>],
+  deriver: (states: [S]) => R,
+  config?: DerivedStoreConfig<R>
+): DerivedStore<R>;
+
+/**
  * Creates a reactive derived store from two source stores.
  * @param sources - Tuple of two `TagixStore` instances.
  * @param deriver - Pure function that computes derived state from source states.
@@ -293,7 +306,7 @@ export function deriveStore<
  * Subscribers are only notified if the derived value structurally changed
  * (controlled by `deepEqual` or a custom equality function via `config.equals`).
  *
- * @param sources - Array of source `TagixStore` instances (2–5).
+ * @param sources - Array of source `TagixStore` instances (1–5).
  * @param deriver - Pure function that computes the derived value from source states.
  * @param config  - Optional configuration.
  * @returns A new `DerivedStore` instance.
@@ -314,9 +327,18 @@ export function deriveStore<
  * summary.destroy();
  * ```
  */
+export function deriveStore<S extends TaggedState, R>(
+  sources: readonly TagixStore<S>[],
+  deriver: (states: readonly S[]) => R,
+  config?: DerivedStoreConfig<R>
+): DerivedStore<R>;
+
+/**
+ * @internal
+ * Implementation signature - not exposed as public API.
+ */
 export function deriveStore(
   sources: readonly AnyTaggedStore[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Implementation signature must be maximally permissive for overload compatibility.
   deriver: (...args: never[]) => unknown,
   config?: DerivedStoreConfig<unknown>
 ): DerivedStore<unknown> {
