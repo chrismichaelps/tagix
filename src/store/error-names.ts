@@ -140,6 +140,9 @@ export const ERROR_CATEGORIES = {
     ERROR_CODES.PAYLOAD_VALIDATION,
   ] as const,
   MATCH: [ERROR_CODES.NON_EXHAUSTIVE_MATCH] as const,
+  CONTEXT: [ERROR_CODES.CONTEXT_DISPOSED] as const,
+  OPTION: [ERROR_CODES.OPTION_NONE] as const,
+  ABSURD: [ERROR_CODES.ABSURD] as const,
 } as const;
 
 /**
@@ -158,6 +161,7 @@ const recoverableCategoriesSet: ReadonlySet<ErrorCategory> = new Set([
   "STATE",
   "ACTION",
   "PAYLOAD",
+  "CONTEXT",
 ]);
 
 /**
