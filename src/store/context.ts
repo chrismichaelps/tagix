@@ -235,7 +235,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
     this.subscriptions.set(subscriptionId, {
       entry: this.rootEntry,
       callback: wrappedCallback,
-      unsubscribe: () => { },
+      unsubscribe: () => {},
     });
 
     return () => {
