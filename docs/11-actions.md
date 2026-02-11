@@ -210,5 +210,6 @@ const doit = createAction<{ id: number }, State>("Doit");
 ## See Also
 
 - [Async Actions](12-async-actions.md) - Handling asynchronous operations
+- [Action Groups](14-action-groups.md) - Namespace actions to avoid collisions
 - [State Definitions](10-state-definitions.md) - State structure
 - [Middleware](21-middleware.md) - Extending dispatch behavior

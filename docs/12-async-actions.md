@@ -7,165 +7,231 @@ description: Handle asynchronous operations with effects, success, and error han
 
 # Async Actions
 
-Handle asynchronous operations with effects, success, and error handlers.
+Async actions handle operations that involve promises, API calls, or other side effects. They separate the async work from state updates, making your code easier to test and reason about.
 
 ## Creating Async Actions
 
-Use `createAsyncAction` for operations that involve promises:
+Use `createAsyncAction` to define async operations with explicit state transitions.
 
 ```ts
-import { createAsyncAction } from "tagix";
+import { createAsyncAction, taggedEnum } from "tagix";
 
-const fetchUser = createAsyncAction<{ id: number }, UserState, User>("FetchUser")
+const ApiState = taggedEnum({
+  Idle: {},
+  Loading: {},
+  Success: { data: null },
+  Error: { message: "" },
+});
+
+const fetchUsers = createAsyncAction("FetchUsers")
   .state((s) => ({ ...s, _tag: "Loading" }))
-  .effect(async (payload) => {
-    const response = await fetch(`/api/users/${payload.id}`);
-    if (!response.ok) throw new Error("User not found");
+  .effect(async () => {
+    const response = await fetch("/api/users");
     return response.json();
   })
-  .onSuccess((s, user) => ({ ...s, _tag: "Loaded", user }))
-  .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+  .onSuccess((state, data) => ({
+    ...state,
+    _tag: "Success",
+    data,
+  }))
+  .onError((state, error) => ({
+    ...state,
+    _tag: "Error",
+    message: error.message,
+  }));
 ```
 
-## Components
+## Action Components
 
-### State Handler
+### state(fn)
 
-The initial state transition when the action starts:
+Define the state transition when the async action starts. This runs immediately when you dispatch the action.
 
 ```ts
-.state((currentState) => ({
-  ...currentState,
+const fetchUsers = createAsyncAction("FetchUsers").state((s) => ({
+  ...s,
   _tag: "Loading",
-}))
+}));
 ```
 
-### Effect Handler
+### effect(fn)
 
-The asynchronous operation:
+Define the asynchronous operation. Return a promise that resolves with the result.
 
 ```ts
-.effect(async (payload) => {
-  const result = await someAsyncOperation(payload);
-  return result; // This becomes the success payload
-})
+const fetchUsers = createAsyncAction("FetchUsers").effect(async () => {
+  const response = await fetch("/api/users");
+  return response.json();
+});
 ```
 
-### onSuccess Handler
+### onSuccess(fn)
 
-Called when the effect resolves:
+Define the state transition when the effect completes successfully.
 
 ```ts
-.onSuccess((currentState, result) => ({
-  ...currentState,
-  _tag: "Ready",
-  data: result,
-}))
+const fetchUsers = createAsyncAction("FetchUsers").onSuccess((state, data) => ({
+  ...state,
+  _tag: "Success",
+  data,
+}));
 ```
 
-### onError Handler
+### onError(fn)
 
-Called when the effect rejects:
+Define the state transition when the effect fails.
 
 ```ts
-.onError((currentState, error) => ({
-  ...currentState,
+const fetchUsers = createAsyncAction("FetchUsers").onError((state, error) => ({
+  ...state,
   _tag: "Error",
-  message: error instanceof Error ? error.message : "Unknown error",
-}))
+  message: error.message,
+}));
 ```
 
 ## Complete Example
 
 ```ts
-const fetchPosts = createAsyncAction<void, PostsState, Post[]>("FetchPosts")
-  .state(() => PostsState.Loading({}))
+import { createStore, createAsyncAction, taggedEnum } from "tagix";
+
+const UserState = taggedEnum({
+  Idle: {},
+  Loading: {},
+  Success: { users: [], total: 0 },
+  Error: { message: "", status: 0 },
+});
+
+const store = createStore(UserState.Idle());
+
+const fetchUsers = createAsyncAction("FetchUsers")
+  .state((s) => ({ ...s, _tag: "Loading" }))
   .effect(async () => {
-    const response = await fetch("https://jsonplaceholder.typicode.com/posts");
-    if (!response.ok) throw new Error("Failed to fetch");
-    return response.json();
+    const response = await fetch("https://api.example.com/users");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   })
-  .onSuccess((_, posts) => PostsState.Loaded({ posts }))
-  .onError((_, error) => PostsState.Error({ message: error.message }));
+  .onSuccess((state, users) => ({
+    ...state,
+    _tag: "Success",
+    users,
+    total: users.length,
+  }))
+  .onError((state, error) => ({
+    ...state,
+    _tag: "Error",
+    message: error.message,
+    status: 500,
+  }));
 
-store.register("FetchPosts", fetchPosts);
+store.register("FetchUsers", fetchUsers);
 
-// Dispatch async action
-await store.dispatch(fetchPosts);
+await store.dispatch("tagix/action/FetchUsers", {});
 ```
 
 ## Dispatching Async Actions
 
-Async actions return promises:
+Async action dispatch returns a Promise.
 
 ```ts
 // Await the result
-await store.dispatch(fetchUser, { id: 1 });
+await store.dispatch("tagix/action/FetchUsers", {});
 
 // Handle errors
 try {
-  await store.dispatch(fetchUser, { id: 999 });
+  await store.dispatch("tagix/action/FetchUsers", {});
 } catch (error) {
   console.error("Action failed:", error);
 }
 ```
 
+## Type Inference
+
+All types are automatically inferred from your state definition and callbacks.
+
+```ts
+const fetchData = createAsyncAction("FetchData")
+  .state((s) => {
+    // s inferred as UserState
+  })
+  .effect(async () => {
+    // returns User[]
+  })
+  .onSuccess((s, users) => {
+    // s: UserState
+    // users: User[]
+    return { ...s, _tag: "Success", users };
+  });
+```
+
+## State Freshness
+
+The `onSuccess` and `onError` handlers receive the current state, not the pending state. This means concurrent updates made during async execution are preserved.
+
+```ts
+const asyncAction = createAsyncAction("AsyncAction")
+  .state((s) => ({ ...s, _tag: "Loading", value: s.value }))
+  .effect(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return 10;
+  })
+  .onSuccess((s, result) => {
+    // s is the current state after any concurrent updates
+    return { ...s, _tag: "Ready", value: s.value + result };
+  });
+
+store.dispatch("tagix/action/AsyncAction", {});
+store.dispatch("tagix/action/Increment", { amount: 5 });
+// onSuccess receives state with value=5 (not 0), result=10
+// Returns Ready { value: 15 }
+```
+
 ## Error Handling
 
-### Structured Errors
-
-Define error types in your state:
+Errors in the effect are caught and passed to `onError`. The error does not reject the dispatch Promise.
 
 ```ts
-const ApiState = taggedEnum({
-  Idle: {},
-  Loading: {},
-  Success: { data: unknown },
-  Error: {
-    code: string;
-    message: string;
-    retryable: boolean;
-  },
-});
+const riskyFetch = createAsyncAction("RiskyFetch")
+  .effect(async () => {
+    const response = await fetch("/api/might-fail");
+    if (!response.ok) {
+      throw new Error("Request failed");
+    }
+    return response.json();
+  })
+  .onError((state, error) => ({
+    ...state,
+    _tag: "Error",
+    message: error.message,
+  }));
+
+try {
+  await store.dispatch("tagix/action/RiskyFetch", {});
+} catch (error) {
+  // This never runs - errors are caught by onError
+}
 ```
 
-### Retry Logic
+## Retry Logic
 
-Implement retry in the effect:
+Implement retry patterns inside the effect.
 
 ```ts
-const fetchWithRetry = createAsyncAction<{ id: number }, State, Data>("Fetch")
-  .state((s) => ({ ...s, _tag: "Loading" }))
-  .effect(async (payload, { signal }) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
+const fetchWithRetry = createAsyncAction("FetchWithRetry")
+  .state((s) => s)
+  .effect(async () => {
+    let attempts = 0;
+    while (attempts < 3) {
       try {
-        return await fetchWithSignal(`/api/${payload.id}`, signal);
-      } catch (error) {
-        if (attempt === 2) throw error;
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        const response = await fetch("/api/data");
+        return await response.json();
+      } catch {
+        attempts++;
+        if (attempts >= 3) throw new Error("Max retries exceeded");
       }
     }
-    throw new Error("Max retries exceeded");
-  })
-  .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
-  .onError((s, error) => ({ ...s, _tag: "Error", message: error.message, retryable: true }));
-```
-
-## Canceling Actions
-
-Use AbortSignal for cancellation:
-
-```ts
-const fetchData = createAsyncAction<{ id: number }, State, Data>("Fetch")
-  .state((s) => ({ ...s, _tag: "Loading" }))
-  .effect(async (payload, { signal }) => {
-    const controller = new AbortController();
-    signal.addEventListener("abort", () => controller.abort());
-
-    const response = await fetch(`/api/${payload.id}`, {
-      signal: controller.signal,
-    });
-    return response.json();
   })
   .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
   .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
@@ -173,37 +239,56 @@ const fetchData = createAsyncAction<{ id: number }, State, Data>("Fetch")
 
 ## Concurrent Actions
 
-Multiple async actions can run concurrently:
+Multiple async actions can run at the same time.
 
 ```ts
+const fetchUser = createAsyncAction("FetchUser")
+  .state((s) => s)
+  .effect(async () => {
+    const response = await fetch(`/api/users/${id}`);
+    return response.json();
+  })
+  .onSuccess((s, user) => ({ ...s, currentUser: user }));
+
+const fetchPosts = createAsyncAction("FetchPosts")
+  .state((s) => s)
+  .effect(async () => {
+    const response = await fetch("/api/posts");
+    return response.json();
+  })
+  .onSuccess((s, posts) => ({ ...s, posts }));
+
+store.register("FetchUser", fetchUser);
+store.register("FetchPosts", fetchPosts);
+
 await Promise.all([
-  store.dispatch(fetchUser, { id: 1 }),
-  store.dispatch(fetchPosts),
-  store.dispatch(fetchNotifications),
+  store.dispatch("tagix/action/FetchUser", { id: 1 }),
+  store.dispatch("tagix/action/FetchPosts", {}),
 ]);
 ```
 
-## Progress Tracking
+## Dispatch Patterns
 
-Track progress for uploads or downloads:
+Actions can be dispatched using multiple patterns.
+
+### String-Based Dispatch
 
 ```ts
-const uploadFile = createAsyncAction<{ file: File }, UploadState, UploadResult>("UploadFile")
-  .state((s) => ({ ...s, _tag: "Uploading", progress: 0 }))
-  .effect(async (payload, { signal }) => {
-    const formData = new FormData();
-    formData.append("file", payload.file);
+store.dispatch("tagix/action/Increment", { amount: 5 });
+```
 
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body: formBody,
-      signal,
-    });
+### Action Creator
 
-    return response.json();
-  })
-  .onSuccess((s, result) => ({ ...s, _tag: "Complete", result }))
-  .onError((s, error) => ({ ...s, _tag: "Failed", error: error.message }));
+Create reusable action creators for type-safe dispatch.
+
+```ts
+const increment = createAction("Increment")
+  .withPayload({ amount: 1 })
+  .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+const incrementBy = (payload: { amount: number }) => increment;
+
+store.dispatch(incrementBy, { amount: 5 });
 ```
 
 ## See Also

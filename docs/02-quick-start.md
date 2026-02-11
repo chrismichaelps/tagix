@@ -7,11 +7,17 @@ description: Build your first Tagix application in under five minutes
 
 # Quick Start
 
-Build your first Tagix application in under five minutes.
+Build a simple counter application using Tagix. This guide walks you through defining state, creating actions, and connecting everything together.
 
-## Step 1: Define State
+## Step 1: Install Tagix
 
-State in Tagix must be defined as discriminated unions using `taggedEnum`:
+```bash
+npm install tagix
+```
+
+## Step 2: Define Your State
+
+Tagix uses tagged unions to represent state. The `taggedEnum` function creates a complete state definition with type safety.
 
 ```ts
 import { taggedEnum } from "tagix";
@@ -26,77 +32,81 @@ const CounterState = taggedEnum({
 type CounterStateType = typeof CounterState.State;
 ```
 
-The `taggedEnum` function creates:
+This creates constructor functions for each state variant and a union type that represents all possible states.
 
-- A type with a `_tag` property for discrimination
-- Constructor functions for each state variant
-- A `State` type union of all variants
+## Step 3: Create a Store
 
-## Step 2: Create Store
-
-Instantiate a store with your initial state:
+The store holds your application state and handles action dispatching.
 
 ```ts
 import { createStore } from "tagix";
 
-const store = createStore(CounterState.Idle({ value: 0 }), CounterState, { name: "Counter" });
+const store = createStore(CounterState.Idle({ value: 0 }), {
+  name: "Counter",
+});
 ```
 
-## Step 3: Create Actions
+The store automatically infers your state type from the initial state you provide.
 
-Actions define state transitions. Use `createAction` for synchronous updates:
+## Step 4: Create Actions
+
+Actions define how your state changes. Use `createAction` for synchronous updates.
 
 ```ts
 import { createAction } from "tagix";
 
-const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+const increment = createAction("Increment")
   .withPayload({ amount: 1 })
   .withState((state, payload) => ({
     ...state,
     value: state.value + payload.amount,
   }));
 
-const reset = createAction<void, CounterStateType>("Reset")
-  .withPayload(undefined)
-  .withState(() => CounterState.Idle({ value: 0 }));
+const reset = createAction("Reset").withState(() => CounterState.Idle({ value: 0 }));
 ```
 
-## Step 4: Register Actions
+The action type automatically includes a namespace prefix. You do not need to specify it manually.
 
-Actions must be registered with the store before use:
+## Step 5: Register Actions
+
+Actions must be registered with the store before you can dispatch them.
 
 ```ts
 store.register("Increment", increment);
 store.register("Reset", reset);
 ```
 
-## Step 5: Dispatch Actions
+## Step 6: Dispatch Actions
 
-Trigger state changes through dispatch:
+Trigger state changes through dispatch.
 
 ```ts
-// Synchronous dispatch
-store.dispatch("tagix/action/Increment", { amount: 5 });
+// Dispatch using the action creator
+store.dispatch(increment, { amount: 5 });
 
-// Check current state
-console.log(store.stateValue._tag); // "Ready"
-console.log((store.stateValue as Extract<CounterStateType, { _tag: "Ready" }>).value); // 5
+// Or dispatch by string
+store.dispatch("tagix/action/Increment", { amount: 3 });
+
+console.log(store.stateValue);
+// { _tag: "Ready", value: 8 }
 ```
 
-## Step 6: Subscribe to Changes
+## Step 7: Subscribe to Changes
 
-Listen for state updates:
+Listen for state updates throughout your application.
 
 ```ts
 const unsubscribe = store.subscribe((state) => {
   console.log("State changed:", state._tag);
 });
 
-// Later, stop listening
+// Stop listening when you no longer need updates
 unsubscribe();
 ```
 
 ## Complete Example
+
+Here is the complete counter application.
 
 ```ts
 import { createStore, createAction, taggedEnum } from "tagix";
@@ -108,35 +118,33 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
-type CounterStateType = typeof CounterState.State;
-
-const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
-  name: "Counter",
-});
-
-const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+const increment = createAction("Increment")
   .withPayload({ amount: 1 })
   .withState((state, payload) => ({
     ...state,
     value: state.value + payload.amount,
   }));
 
+const store = createStore(CounterState.Idle({ value: 0 }), {
+  name: "Counter",
+});
+
 store.register("Increment", increment);
 
 store.subscribe((state) => {
   if (state._tag === "Ready") {
-    console.log("Value:", state.value);
+    console.log("Current value:", state.value);
   }
 });
 
-store.dispatch("tagix/action/Increment", { amount: 10 });
-// Output: Value: 10
+store.dispatch(increment, { amount: 10 });
+// Output: Current value: 10
 ```
 
 ## Next Steps
 
-| Topic                                | Description                     |
-| ------------------------------------ | ------------------------------- |
-| [Core Concepts](03-core-concepts.md) | Understand fundamental concepts |
-| [Actions](11-actions.md)             | Learn about synchronous actions |
-| [Async Actions](12-async-actions.md) | Handle asynchronous operations  |
+| Topic                                        | Description                                   |
+| -------------------------------------------- | --------------------------------------------- |
+| [Core Concepts](03-core-concepts.md)         | Understand the fundamental ideas behind Tagix |
+| [State Definitions](10-state-definitions.md) | Learn more about tagged unions                |
+| [Actions](11-actions.md)                     | Explore synchronous actions in depth          |

@@ -2,193 +2,288 @@
 category: Features
 alias: context
 title: Context
-description: Framework-agnostic store integration
+description: Framework-agnostic store integration with sub-contexts and dependency injection
 ---
 
 # Context
 
-## Store Context
+TagixContext wraps a store with additional features for dependency injection, sub-contexts, and framework integration. Contexts work with any framework including React, Vue, Svelte, or vanilla JavaScript.
 
-The store provides methods for integration with any framework:
+## Creating a Context
 
 ```ts
-const store = createStore(initialState, state, { name: "App" });
+import { createStore, createContext, taggedEnum } from "tagix";
 
-// Subscribe to changes
-const unsubscribe = store.subscribe((state) => {
-  console.log("State changed:", state);
+const CounterState = taggedEnum({
+  Idle: { value: 0 },
+  Loading: {},
+  Ready: { value: 0 },
+  Error: { message: "" },
 });
 
-// Dispatch actions
-store.dispatch("ActionType", payload);
+const store = createStore(CounterState.Idle({ value: 0 }), {
+  name: "Counter",
+});
 
-// Query state
-const isReady = store.isInState("Ready");
-const readyState = store.getState("Ready");
-const value = store.select("property");
+const context = createContext(store);
 ```
 
-## Framework Integration
-
-### Direct Integration
-
-Access the store directly in components:
+You can pass configuration options when creating a context.
 
 ```ts
-// In any component
-const store = getStoreFromContext(); // Framework-specific
+const context = createContext(store, {
+  parent: null,
+  autoCleanup: true,
+  onError: (error) => console.error(error),
+});
+```
 
-// Subscribe
-const unsubscribe = store.subscribe((state) => {
-  // Update UI based on state
+## Context Methods
+
+### getCurrent
+
+Get the current state from the context.
+
+```ts
+const state = context.getCurrent();
+console.log(state._tag); // "Idle"
+```
+
+### dispatch
+
+Dispatch an action through the context.
+
+```ts
+context.dispatch("Increment", { amount: 5 });
+
+// Async actions return Promise
+await context.dispatch("FetchData", {});
+```
+
+### subscribe
+
+Subscribe to state changes. The callback runs immediately with the current state, then on each change.
+
+```ts
+const unsubscribe = context.subscribe((state) => {
+  console.log("State changed:", state._tag);
 });
 
-// Dispatch
-store.dispatch("action", payload);
-
-// Cleanup
 unsubscribe();
 ```
 
-### Reactive Integration
+### select
 
-Create reactive wrappers:
+Select a value from state and subscribe to changes.
 
 ```ts
-// Vanilla subscription manager
-const createSubscriber = (store) => {
-  const listeners = new Set();
-
-  const unsubscribe = store.subscribe((state) => {
-    listeners.forEach((fn) => fn(state));
-  });
-
-  return {
-    subscribe: (fn) => {
-      listeners.add(fn);
-      return () => listeners.delete(fn);
-    },
-    dispatch: store.dispatch,
-    select: store.select,
-  };
-};
+context.select(
+  (state) => state.value,
+  (value) => {
+    console.log("Value changed:", value);
+  }
+);
 ```
 
-### Selectors in Components
+### selectAsync
 
-Derive computed values:
+Get a value as a Promise.
 
 ```ts
-const createSelector = (store, selector) => {
-  let current = selector(store.stateValue);
+const { promise, unsubscribe } = context.selectAsync((state) => state.value);
 
-  store.subscribe(() => {
-    const next = selector(store.stateValue);
-    if (next !== current) {
-      current = next;
-      notifyListeners();
-    }
-  });
+const value = await promise;
+console.log(value);
 
-  return () => current;
-};
+unsubscribe();
 ```
 
-## Store Access Patterns
+### subscribeKey
 
-### Singleton Pattern
-
-Single store for the application:
+Subscribe to changes of a specific state property.
 
 ```ts
-// store.ts
-export const store = createStore(initialState, state);
-
-// Elsewhere
-import { store } from "./store";
-store.dispatch("action", payload);
+context.subscribeKey("_tag", (tag) => {
+  console.log("Tag changed:", tag);
+});
 ```
 
-### Context Pattern
+### use
 
-Provide store through context:
+Access state or a selected value using a hook pattern.
 
 ```ts
-// Context creation (framework-agnostic)
-const TagixContext = {
-  Provider: (store, children) => children,
-  Consumer: (store, render) => render(store),
-};
+// Get full state
+const state = context.use();
+
+// Get selected value
+const value = context.use((state) => state.value);
 ```
 
-### Dependency Injection
+## Dependency Injection
 
-Inject store into components:
+Contexts support dependency injection through the `provide` method. This creates sub-contexts with values that can be accessed by components.
+
+### Provide Static Values
 
 ```ts
-interface AppServices {
-  store: TagixStore<State>;
-  logger: Logger;
+const userContext = context.provide("user", {
+  name: "Chris",
+  role: "admin",
+});
+```
+
+### Provide Derived Values
+
+```ts
+const computedContext = context.provide("computed", (parent) => ({
+  doubled: parent.value * 2,
+  squared: parent.value ** 2,
+}));
+```
+
+### Get Provided Values
+
+```ts
+const user = userContext.get<{ name: string; role: string }>("user");
+if (user.isSome) {
+  console.log(user.value.name); // "Chris"
 }
-
-const createServices = (): AppServices => ({
-  store: createStore(initialState, state),
-  logger: new Logger(),
-});
-
-// Inject where needed
-const service = createServices();
 ```
 
-## Multiple Stores
+## Forking and Merging
 
-Combine multiple stores:
+Create isolated branches of state that share the same underlying store.
+
+### Fork
 
 ```ts
-const authStore = createStore(authInitial, authState);
-const dataStore = createStore(dataInitial, dataState);
-const uiStore = createStore(uiInitial, uiState);
+const fork = context.fork();
+fork.dispatch("Increment", { amount: 10 });
 
-// Combine in parent
-const rootState = taggedEnum({
-  Auth: authStore.stateValue,
-  Data: dataStore.stateValue,
-  UI: uiStore.stateValue,
-});
+console.log(context.getCurrent().value); // 10
 ```
 
-## Forking Stores
+Forks share the same store. Changes made in a fork propagate back to the parent context automatically.
 
-Create isolated copies for testing:
+### Clone
+
+Create a new context with its own subscriptions but the same store.
 
 ```ts
-const mainStore = createStore(initialState, state);
+const cloned = context.clone();
+```
 
-// Create fork
-const testStore = mainStore.fork();
+### Merge
 
-// Test actions
-testStore.dispatch("action", payload);
+Merge state from another context into this one.
 
-// Verify
-expect(testStore.stateValue).toMatchObject({
-  /* expected */
-});
+```ts
+const otherContext = context.fork();
+otherContext.dispatch("Increment", { amount: 5 });
 
-// Original store unchanged
-expect(mainStore.stateValue).toBe(originalState);
+context.merge(otherContext);
 ```
 
 ## Cleanup
 
-Always clean up subscriptions:
+Clean up contexts when you are done with them.
 
 ```ts
-// Good
-const unsubscribe = store.subscribe(handler);
-return () => unsubscribe();
+context.dispose();
 
-// Bad - memory leak
-store.subscribe(handler);
-// No cleanup
+// All operations throw after disposal
+context.getCurrent(); // Error
 ```
+
+Contexts are automatically cleaned up when you dispose child contexts, forked contexts, and derived contexts.
+
+## Complete Example
+
+```ts
+import { createStore, createContext, createAction, taggedEnum } from "tagix";
+
+const CounterState = taggedEnum({
+  Idle: { value: 0 },
+  Loading: {},
+  Ready: { value: 0 },
+  Error: { message: "" },
+});
+
+const store = createStore(CounterState.Idle({ value: 0 }), {
+  name: "Counter",
+});
+
+const context = createContext(store);
+
+const increment = createAction("Increment")
+  .withPayload({ amount: 1 })
+  .withState((state, payload) => ({
+    ...state,
+    value: state.value + payload.amount,
+  }));
+
+store.register("Increment", increment);
+
+// Subscribe to state changes
+context.subscribe((state) => {
+  console.log("State:", state._tag);
+});
+
+// Select specific value
+context.select(
+  (state) => {
+    if ("value" in state && typeof state.value === "number") {
+      return state.value;
+    }
+    return 0;
+  },
+  (value) => {
+    console.log("Value:", value);
+  }
+);
+
+// Dispatch actions
+context.dispatch("Increment", { amount: 5 });
+```
+
+## Hook Utilities
+
+Tagix provides hook utilities for framework integration.
+
+```ts
+import { useStore, useSelector, useDispatch, useSubscribe } from "tagix/hooks";
+
+// Get current state
+const state = useStore(context);
+
+// Get derived value
+const value = useSelector(context, (state) => state.value);
+
+// Subscribe to changes
+const unsubscribe = useSubscribe(context, (state) => {
+  console.log("State changed:", state._tag);
+});
+
+// Get dispatch function
+const dispatch = useDispatch(context);
+dispatch("Increment", { amount: 1 });
+```
+
+## Error Handling
+
+Configure custom error handling for subscription errors.
+
+```ts
+const context = createContext(store, {
+  onError: (error) => {
+    console.error("Context error:", error);
+  },
+});
+```
+
+## See Also
+
+- [createStore](../core/factory.md) - Store creation
+- [Actions](../actions/index.md) - Synchronous actions
+- [Selectors](../selectors/index.md) - Selector utilities
