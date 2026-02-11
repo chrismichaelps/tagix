@@ -76,9 +76,20 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
  * @param name - The error name to look up.
  * @returns The numeric error code.
  */
+/** Reverse map: ErrorName value => ErrorCode value */
+const nameToCodeMap: ReadonlyMap<ErrorName, ErrorCode> = new Map(
+  (Object.keys(ERROR_NAMES) as Array<keyof typeof ERROR_NAMES>).map((key) => [
+    ERROR_NAMES[key],
+    ERROR_CODES[key],
+  ])
+);
+
 export const getErrorCode = (name: ErrorName): ErrorCode => {
-  const codes = ERROR_CODES as unknown as Record<ErrorName, ErrorCode>;
-  return codes[name];
+  const code = nameToCodeMap.get(name);
+  if (code === undefined) {
+    throw new Error(`Unknown error name: ${name}`);
+  }
+  return code;
 };
 
 /**
@@ -99,12 +110,12 @@ export interface TagixErrorObject {
 export const isTagixError = (error: unknown): error is TagixErrorObject => {
   if (error === null || typeof error !== "object") return false;
 
-  const e = error as TagixErrorObject;
-
-  const hasTag = "_tag" in e && typeof e._tag === "string";
-  const hasCode = "code" in e && typeof e.code === "number";
-
-  return hasTag && hasCode;
+  return (
+    "_tag" in error &&
+    typeof (error as { _tag: unknown })._tag === "string" &&
+    "code" in error &&
+    typeof (error as { code: unknown }).code === "number"
+  );
 };
 
 /**
@@ -115,10 +126,9 @@ export const isTagixError = (error: unknown): error is TagixErrorObject => {
 export const getErrorInfo = (error: unknown): TagixErrorObject | null => {
   if (!isTagixError(error)) return null;
 
-  const e = error as TagixErrorObject;
   return {
-    _tag: e._tag,
-    code: e.code,
+    _tag: error._tag,
+    code: error.code,
     message: error instanceof Error ? error.message : "Unknown error",
   };
 };
@@ -155,6 +165,9 @@ const codeToCategoryMap: Map<number, ErrorCategory> = new Map([
   ...ERROR_CATEGORIES.ACTION.map((c) => [c, "ACTION"] as [number, ErrorCategory]),
   ...ERROR_CATEGORIES.PAYLOAD.map((c) => [c, "PAYLOAD"] as [number, ErrorCategory]),
   ...ERROR_CATEGORIES.MATCH.map((c) => [c, "MATCH"] as [number, ErrorCategory]),
+  ...ERROR_CATEGORIES.CONTEXT.map((c) => [c, "CONTEXT"] as [number, ErrorCategory]),
+  ...ERROR_CATEGORIES.OPTION.map((c) => [c, "OPTION"] as [number, ErrorCategory]),
+  ...ERROR_CATEGORIES.ABSURD.map((c) => [c, "ABSURD"] as [number, ErrorCategory]),
 ]);
 
 const recoverableCategoriesSet: ReadonlySet<ErrorCategory> = new Set([
