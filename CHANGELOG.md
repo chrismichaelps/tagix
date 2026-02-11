@@ -1,3 +1,59 @@
+## [1.1.0](https://github.com/chrismichaelps/tagix/compare/v1.0.1...v1.1.0) (2026-02-11)
+
+### Features
+
+* add derived stores for computed state ([ed81adf](https://github.com/chrismichaelps/tagix/commit/ed81adf51d99dec36cbf080425353487bb2e25ee)), closes [#22](https://github.com/chrismichaelps/tagix/issues/22)
+* add single-store overload and edge case tests for derived stores ([b3e34fa](https://github.com/chrismichaelps/tagix/commit/b3e34fa3b544f5515256a9f8215c497444f10ea0))
+* export  and update action documentation. ([24fba92](https://github.com/chrismichaelps/tagix/commit/24fba92a9099fad9877606a3089deeab9e89c300))
+* **function.ts:** add Gist author support ([d1b4635](https://github.com/chrismichaelps/tagix/commit/d1b4635c04d8aa9d94e39352c0117de525900b96))
+* introduce action groups for better action organization and dispatching, along with supporting documentation and tests. ([f0cfe93](https://github.com/chrismichaelps/tagix/commit/f0cfe93d83fff14d325a4b0d985881a23ec2c1fa)), closes [#24](https://github.com/chrismichaelps/tagix/issues/24)
+* Introduce Tagix store hooks for state access, selection, and subscription, complete with documentation and tests. ([50bfb80](https://github.com/chrismichaelps/tagix/commit/50bfb802c60765d90723b6099712474f7e086ca7))
+
+### Bug Fixes
+
+* add subscriber exception handling to prevent crashes ([f075e3a](https://github.com/chrismichaelps/tagix/commit/f075e3ad87c0bb908f97399cd9865d0176f11fad)), closes [#15](https://github.com/chrismichaelps/tagix/issues/15)
+* add subscriber exception handling to prevent crashes ([d8a31aa](https://github.com/chrismichaelps/tagix/commit/d8a31aa618b6dd4895f38f675a14e33c05ccbcc3)), closes [#15](https://github.com/chrismichaelps/tagix/issues/15)
+* add subscriber exception handling to prevent crashes ([31ddd18](https://github.com/chrismichaelps/tagix/commit/31ddd1840c4c734de47d0a145785bf9589aac246)), closes [#15](https://github.com/chrismichaelps/tagix/issues/15)
+* add type-safe validation for async action effect property ([86df1e4](https://github.com/chrismichaelps/tagix/commit/86df1e4ff5b4aa3745d259c5e945ec04f1e09a36)), closes [#16](https://github.com/chrismichaelps/tagix/issues/16)
+* ensure unique error history timestamps to prevent collisions ([12d6806](https://github.com/chrismichaelps/tagix/commit/12d6806f91f54aa9fcd7fd0c3699b2fa37aa14dd)), closes [#15](https://github.com/chrismichaelps/tagix/issues/15)
+* **error:** add missing categories for new error types ([c6e13e9](https://github.com/chrismichaelps/tagix/commit/c6e13e9811bca250b9422002daf7b12827a18866))
+* fork() creates isolated state for contexts ([b96ff04](https://github.com/chrismichaelps/tagix/commit/b96ff04861bc8e682a6ef104fe235cc29fdbe44c)), closes [#20](https://github.com/chrismichaelps/tagix/issues/20)
+* resolve critical state mutation in TagixContext.merge() ([4b3deae](https://github.com/chrismichaelps/tagix/commit/4b3deaed5695025aae4776ef902af59e51c5522c)), closes [#14](https://github.com/chrismichaelps/tagix/issues/14)
+
+### Performance Improvements
+
+* **predicate:** optimize partition from O(n²) to O(n) ([8611cae](https://github.com/chrismichaelps/tagix/commit/8611cae590a0a26ad291847bc774dcc2be194dab))
+
+### Documentation
+
+* add Derived Stores documentation ([7ae0901](https://github.com/chrismichaelps/tagix/commit/7ae0901bcadafa9dcb191cad89609648c6fde6b2)), closes [#22](https://github.com/chrismichaelps/tagix/issues/22)
+* **group:** fix arrow in JSDoc comment ([d971fda](https://github.com/chrismichaelps/tagix/commit/d971fda16fd227877acaf74b68c130f7e3b37439))
+* update and expand documentation ([afcff3e](https://github.com/chrismichaelps/tagix/commit/afcff3ef67ddc883239741eae604ea581c32828f))
+* Update example user data in READMEs and tests. ([a187799](https://github.com/chrismichaelps/tagix/commit/a187799d490f5deb548d31c85971f3d7d298c0d8))
+* update logo references to use SVG format ([99af4f9](https://github.com/chrismichaelps/tagix/commit/99af4f997e4ee443de5cdb7abe41c97ec1a6429f)), closes [#22](https://github.com/chrismichaelps/tagix/issues/22)
+
+### Styles
+
+* pnpm format ([d3e8841](https://github.com/chrismichaelps/tagix/commit/d3e884158510ce7314a464ae93ec5c33a4943e08))
+
+### Code Refactoring
+
+* **context:** replace Error with ContextDisposedError ([1ae1eda](https://github.com/chrismichaelps/tagix/commit/1ae1edad52b92f87ac7ee18a09187c655fde583c))
+* **error-names:** use reverse map and inline narrowing ([d7b49cc](https://github.com/chrismichaelps/tagix/commit/d7b49ccf3d6913b7cb7f4e5c4e9540cfc54f76d9))
+* **error:** add ContextDisposedError to error system ([679fd81](https://github.com/chrismichaelps/tagix/commit/679fd81ed4808496ceb73bdaff3cee49adaa801f))
+* **error:** add OptionNoneError and AbsurdError ([df0c960](https://github.com/chrismichaelps/tagix/commit/df0c9609647c4f0023b2f121bfa7d7925d9fe244))
+* **factory,context:** remove redundant action casts in fork ([0a487da](https://github.com/chrismichaelps/tagix/commit/0a487dabdc38c0fa9734401d38646f5bcf233efe))
+* **functions:** use hasProperty and isFunction in matchTag ([8dc0091](https://github.com/chrismichaelps/tagix/commit/8dc00913afbae0efb99d3301642eb80a680a5b46))
+* pnpm format ([e16efd6](https://github.com/chrismichaelps/tagix/commit/e16efd67a973222855ed06990222d2bb0dba3e75))
+* **selectors:** use guards in pluck for safe property access ([e7975f9](https://github.com/chrismichaelps/tagix/commit/e7975f98153ab9e7bd0f3594e8e68f93c4430f1e))
+* **store:** replace type assertions with guards and AnyAction type ([ec5dbdf](https://github.com/chrismichaelps/tagix/commit/ec5dbdf20efe26b7c8392ecfe04a080e451853d6))
+* **tagged-error:** use symbol check in getStoredArgs ([02df038](https://github.com/chrismichaelps/tagix/commit/02df038ed175fe786aef63653e756ea9a5a61af2))
+* **test:** add TestError and replace throw new Error() ([c3a2262](https://github.com/chrismichaelps/tagix/commit/c3a2262101fa5cba5ef00926fa5a29ad349d42c7))
+
+### Tests
+
+* delete test-08-tagged-enum-state.cjs ([9363a32](https://github.com/chrismichaelps/tagix/commit/9363a32f36c224aae5f3f0c240860ec2eb85c282))
+
 ## [1.0.1](https://github.com/chrismichaelps/tagix/compare/v1.0.0...v1.0.1) (2026-02-07)
 
 ### Bug Fixes

@@ -1,7 +1,7 @@
 {
   "name": "tagix",
   "private": false,
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "A state management library for TypeScript built on functional programming primitives.",
   "keywords": [
