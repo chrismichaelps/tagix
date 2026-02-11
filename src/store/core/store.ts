@@ -22,7 +22,6 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
-import { isFunction } from "../../lib/Data/predicate";
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
 import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
@@ -113,7 +112,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this._validStateTags = new Set();
 
     for (const key of Object.keys(initialState)) {
-      if (key !== "_tag" && isFunction((stateConstructor as any)[key])) {
+      if (key !== "_tag" && typeof (stateConstructor as any)[key] === "function") {
         this._validStateTags.add(key);
       }
     }
@@ -315,16 +314,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
   /**
    * Dispatches an action. Supports multiple patterns:
    * 1. String-based: dispatch("action/type", payload)
-   * 2. Action creator with payload: dispatch(actionCreator, payload)
-   * 3. Action creator returning action: dispatch(() => actionObject)
-   * @param typeOrAction - Action type string, action creator function, or action object.
-   * @param payload - Optional payload for the action.
+   * 2. Action object: dispatch(actionObject) or dispatch(actionObject, payload)
+   * 3. Action group reference: dispatch(UserActions.login, payload)
+   * @param typeOrAction - Action type string, action object from group, or action group member.
+   * @param payload - Optional payload for the action (uses action's default payload if not provided).
    * @returns void for sync actions, Promise for async actions.
    */
-  dispatch<T = unknown>(
-    typeOrAction: string | ((payload?: T) => object) | object,
-    payload?: T
-  ): void | Promise<void> {
+  dispatch<T = unknown>(typeOrAction: string | object, payload?: T): void | Promise<void> {
     if (typeof typeOrAction === "string") {
       return this._dispatchByType(typeOrAction, payload);
     }
@@ -332,6 +328,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
     if (typeof typeOrAction === "function") {
       const action = (typeOrAction as (payload?: T) => object)(payload);
       return this._dispatchAction(action as Action | AsyncAction, payload);
+    }
+
+    const actionObj = typeOrAction as Action | AsyncAction;
+    if (("type" in actionObj && "handler" in actionObj) || "effect" in actionObj) {
+      const effectivePayload = payload !== undefined ? payload : actionObj.payload;
+      return this._dispatchAction(actionObj, effectivePayload);
     }
 
     return this._dispatchAction(typeOrAction as Action | AsyncAction, payload);
@@ -591,6 +593,17 @@ export class TagixStore<S extends { readonly _tag: string }> {
     action: Action<TPayload, S> | AsyncAction<TPayload, S, any>
   ): void {
     this.actions.set(`${ACTION_TYPE_PREFIX}${type}`, action as unknown as Action | AsyncAction);
+  }
+
+  /**
+   * Registers all actions from an action group.
+   * @param group - Action group created by `createActionGroup`.
+   * @remarks Each action in the group has its type prefixed with the namespace.
+   */
+  registerGroup(group: Record<string, Action<any, any> | AsyncAction<any, any, any>>): void {
+    for (const action of Object.values(group)) {
+      this.actions.set(action.type, action as unknown as Action | AsyncAction);
+    }
   }
 
   /**

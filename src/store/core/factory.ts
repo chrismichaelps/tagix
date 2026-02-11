@@ -50,6 +50,51 @@ export function createStore<S extends { readonly _tag: string }>(
 }
 
 /**
+ * Creates an isolated fork of a store with its own state copy.
+ * @typeParam S - The state type, must be a discriminated union with `_tag` property.
+ * @param store - The source store to fork.
+ * @returns A new store with an independent copy of the source state.
+ * @remarks
+ * The forked store:
+ * - Has its own isolated state (changes don't affect the source)
+ * - Starts with the same state as the source at fork time
+ * - Has all registered actions from the source copied over
+ * - Uses `strict: false` to allow state transitions that may differ from source
+ * - Has independent error history
+ *
+ * @example
+ * ```ts
+ * const mainStore = createStore(UserState.LoggedOut({}), UserState);
+ * mainStore.registerGroup(UserActions);
+ *
+ * const forkedStore = fork(mainStore);
+ * forkedStore.dispatch(UserActions.login, { username: "temp" });
+ *
+ * console.log(mainStore.stateValue._tag); // "LoggedOut"
+ * console.log(forkedStore.stateValue._tag); // "LoggedIn"
+ * ```
+ */
+export function fork<S extends { readonly _tag: string }>(store: TagixStore<S>): TagixStore<S> {
+  const currentState = store.stateValue;
+  const stateConstructor = store.getStateConstructor();
+
+  const forkStore = createStore(currentState, stateConstructor, {
+    name: `${store.name}-fork`,
+    strict: false,
+    maxErrorHistory: 10,
+    maxRetries: 3,
+    middlewares: undefined,
+  });
+
+  const actions = store.getActions();
+  for (const [type, action] of actions) {
+    forkStore.register(type.replace("tagix/action/", ""), action as any);
+  }
+
+  return forkStore;
+}
+
+/**
  * Core store class for Tagix state management.
  * @remarks See {@link TagixStore} class documentation for details.
  */
