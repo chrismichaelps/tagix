@@ -31,6 +31,7 @@ export * from "./actions";
 export * from "./guards";
 export * from "./match";
 export * from "./context";
+export * from "./hooks";
 export {
   patch,
   getState,
