@@ -379,14 +379,22 @@ const CartActions = createActionGroup("Shop/Cart", {
 Async actions work seamlessly with groups:
 
 ```ts
+const UserState = taggedEnum({
+  LoggedOut: {},
+  LoggedIn: { name: "", email: "" },
+});
+
 const fetchUser = createAsyncAction("FetchUser")
   .state((s) => s)
   .effect(async () => {
-    const response = await fetch("/api/user");
-    return response.json();
+    return { name: "Test User", email: "test@example.com" };
   })
   .onSuccess((_, user) => UserState.LoggedIn({ name: user.name, email: user.email }))
   .onError(() => UserState.LoggedOut({}));
+
+const login = createAction("Login")
+  .withPayload({ username: "" })
+  .withState((_, payload) => UserState.LoggedIn({ name: payload.username, email: "" }));
 
 const UserActions = createActionGroup("User", { login, fetchUser });
 
@@ -411,13 +419,37 @@ store.registerGroup(CartActions);
 Register the same group on different stores with different state types:
 
 ```ts
-const SharedActions = createActionGroup("Shared", { login, logout });
+const UserState = taggedEnum({
+  LoggedOut: {},
+  LoggedIn: { name: "", email: "" },
+});
+
+const CartState = taggedEnum({
+  Empty: {},
+  HasItems: { items: [] as { name: string; price: number }[] },
+});
+
+const login = createAction("Login")
+  .withPayload({ username: "" })
+  .withState((_, payload) => UserState.LoggedIn({ name: payload.username, email: "" }));
+
+const addItem = createAction("AddItem")
+  .withPayload({ name: "", price: 0 })
+  .withState((state, payload) =>
+    state._tag === "HasItems"
+      ? CartState.HasItems({
+          items: [...state.items, { name: payload.name, price: payload.price }],
+        })
+      : CartState.HasItems({ items: [{ name: payload.name, price: payload.price }] })
+  );
+
+const SharedActions = createActionGroup("Shared", { login, addItem });
 
 userStore.registerGroup(SharedActions);
 cartStore.registerGroup(SharedActions);
 
 userStore.dispatch("Shared/Login", { username: "user" });
-cartStore.dispatch("Shared/Login", { userId: 123 });
+cartStore.dispatch("Shared/AddItem", { name: "Widget", price: 29.99 });
 ```
 
 ### Benefits
