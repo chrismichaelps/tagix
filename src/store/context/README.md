@@ -345,7 +345,7 @@ Inject values into sub-contexts with `provide`:
 ```ts
 // Provide static value
 const userContext = context.provide("user", {
-  name: "Alice",
+  name: "Chris",
   role: "admin",
 });
 
@@ -358,7 +358,7 @@ const computedContext = context.provide("computed", (parent) => ({
 // Access provided values
 const user = userContext.get<{ name: string; role: string }>("user");
 if (user.isSome) {
-  console.log(user.value.name); // 'Alice'
+  console.log(user.value.name); // 'Chris'
 }
 ```
 

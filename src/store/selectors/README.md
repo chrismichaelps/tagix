@@ -169,18 +169,18 @@ const UserState = taggedEnum({
 
 const store = createStore(
   UserState.Ready({
-    user: { name: "Alice", email: "alice@test.com", age: 30 },
+    user: { name: "Chris", email: "chris@test.com", age: 30 },
   })
 );
 
 // Simple selection
 const userName = select(store.stateValue.user, "name");
-// 'Alice'
+// 'Chris'
 
 // Curried selector
 const getUserName = pluck("user.name");
 const name = getUserName(store.stateValue);
-// 'Alice'
+// 'Chris'
 
 // Memoized expensive computation
 const computeScore = memoize((user: { age: number }) => {

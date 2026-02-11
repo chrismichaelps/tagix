@@ -652,10 +652,10 @@ describe("TagixContext", () => {
       expect(getValue(context.getCurrent())).toBe(10);
       expect(stateChanges).toBe(3);
 
-      const userContext = context.provide("user", { name: "Alice", role: "admin" });
+      const userContext = context.provide("user", { name: "Chris", role: "admin" });
       const user = userContext.get<{ name: string; role: string }>("user");
       expect(isSome(user)).toBe(true);
-      expect(unwrap(user)).toEqual({ name: "Alice", role: "admin" });
+      expect(unwrap(user)).toEqual({ name: "Chris", role: "admin" });
 
       const computedContext = context.provide("computed", (parent) => ({
         doubled: getValue(parent) * 2,

@@ -159,7 +159,7 @@ describe("getOrDefault()", () => {
     const getter = (input: { name?: string }) => input.name;
 
     const withDefault = getOrDefault("Unknown");
-    expect(withDefault(getter({ name: "Alice" }))).toBe("Alice");
+    expect(withDefault(getter({ name: "Chris" }))).toBe("Chris");
     expect(withDefault(getter({}))).toBe("Unknown");
   });
 });

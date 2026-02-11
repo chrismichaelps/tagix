@@ -348,17 +348,17 @@ store.registerGroup(UserActions);
 Dispatch using the action group reference:
 
 ```ts
-store.dispatch(UserActions.login, { username: "alice" });
+store.dispatch(UserActions.login, { username: "chris" });
 store.dispatch(UserActions.logout);
-store.dispatch(UserActions.updateProfile, { email: "alice@example.com" });
+store.dispatch(UserActions.updateProfile, { email: "chris@example.com" });
 ```
 
 Or by string with namespace prefix:
 
 ```ts
-store.dispatch("User/Login", { username: "alice" });
+store.dispatch("User/Login", { username: "chris" });
 store.dispatch("User/Logout", {});
-store.dispatch("User/UpdateProfile", { email: "alice@example.com" });
+store.dispatch("User/UpdateProfile", { email: "chris@example.com" });
 ```
 
 ### Nested Namespaces
