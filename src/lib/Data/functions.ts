@@ -1,6 +1,5 @@
-// https://gist.github.com/chrismichaelps/c0a8b3ea083ad2e01357f4f2990bba9a
-
 import { AbsurdError } from "../../store/error";
+import { hasProperty, isFunction } from "./predicate";
 
 export interface LazyArg<A> {
   (): A;
@@ -121,11 +120,10 @@ export function matchTag<T extends { readonly _tag: string }, R>(
   }
 ): R {
   const tag = value._tag;
-  const caseKeys = Object.keys(cases) as Array<TaggedUnionTag<T>>;
-  if (caseKeys.includes(tag as TaggedUnionTag<T>)) {
-    const handler = (cases as Record<string, unknown>)[tag];
-    if (typeof handler === "function") {
-      return (handler as (val: T) => R)(value);
+  if (hasProperty(cases, tag)) {
+    const handler: unknown = cases[tag as keyof typeof cases];
+    if (isFunction(handler)) {
+      return (handler as (value: T) => R)(value);
     }
   }
   return cases._(value);
