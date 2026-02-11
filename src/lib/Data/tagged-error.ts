@@ -21,7 +21,8 @@ function extractCause(args: ErrorArgs): { cause: unknown } | undefined {
 }
 
 function getStoredArgs(instance: object): ErrorArgs {
-  const stored = (instance as Record<string | symbol, unknown>)[plainArgsSymbol];
+  if (!(plainArgsSymbol in instance)) return {};
+  const stored = (instance as { [plainArgsSymbol]: unknown })[plainArgsSymbol];
   return isRecord(stored) ? stored : {};
 }
 
