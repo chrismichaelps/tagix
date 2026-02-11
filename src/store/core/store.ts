@@ -25,6 +25,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
 import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
+import { isRecord, isFunction, hasProperty } from "../../lib/Data/predicate";
 import {
   StoreConfig,
   Action,
@@ -48,6 +49,9 @@ type StateTransitions<S extends { readonly _tag: string }> = Partial<
   Record<S["_tag"], (state: S, payload?: unknown) => S>
 >;
 
+/** Union type for storing heterogeneous actions in a Map */
+type AnyAction = Action<any, any> | AsyncAction<any, any, any>;
+
 function deepMerge(
   target: Record<string, unknown>,
   source: Record<string, unknown>
@@ -65,15 +69,8 @@ function deepMerge(
     const sourceValue = source[key];
     const targetValue = target[key];
 
-    if (sourceValue !== null && typeof sourceValue === "object" && !Array.isArray(sourceValue)) {
-      if (targetValue !== null && typeof targetValue === "object" && !Array.isArray(targetValue)) {
-        result[key] = deepMerge(
-          targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
-        );
-      } else {
-        result[key] = sourceValue;
-      }
+    if (isRecord(sourceValue)) {
+      result[key] = isRecord(targetValue) ? deepMerge(targetValue, sourceValue) : sourceValue;
     } else {
       result[key] = sourceValue;
     }
@@ -90,15 +87,22 @@ function deepMerge(
 export class TagixStore<S extends { readonly _tag: string }> {
   private state: S;
   private readonly stateConstructor: TaggedEnumConstructor<S>;
-  private readonly actions: Map<string, Action | AsyncAction> = new Map();
+  private readonly actions: Map<string, AnyAction> = new Map();
   private readonly _errorHistory: Map<number, unknown> = new Map();
   private readonly _errorCountByCategory: Map<ErrorCategory, number> = new Map();
+  private readonly _errorCodeIndex: Map<number, number> = new Map();
+  private readonly _errorsByCategoryIndex: Map<ErrorCategory, unknown[]> = new Map();
   private readonly subscribers: Set<SubscribeCallback<S>> = new Set();
   private readonly config: Required<StoreConfig<S>>;
   private readonly _validStateTags: Set<string>;
-  private readonly _dispatchMiddleware: (action: Action | AsyncAction) => boolean;
+  private readonly _dispatchMiddleware: (action: AnyAction) => boolean;
   private _currentPayload: unknown = undefined;
   private _errorTimestampCounter: number = 0;
+  private _lastErrorKey: number = -1;
+  private _lastErrorValue: unknown | undefined = undefined;
+  private _actionsDirty: boolean = false;
+  private _cachedActionKeys: readonly string[] = [];
+  private _cachedActionsMap: ReadonlyMap<string, AnyAction> = new Map();
 
   constructor(
     initialState: S,
@@ -112,7 +116,9 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this._validStateTags = new Set();
 
     for (const key of Object.keys(initialState)) {
-      if (key !== "_tag" && typeof (stateConstructor as any)[key] === "function") {
+      if (key === "_tag") continue;
+      const ctor = stateConstructor as Record<string, unknown>;
+      if (hasProperty(ctor, key) && isFunction(ctor[key])) {
         this._validStateTags.add(key);
       }
     }
@@ -128,7 +134,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     };
 
     const middlewares = this.config.middlewares || [];
-    let next: (action: Action | AsyncAction) => boolean = (_action) => {
+    let next: (action: AnyAction) => boolean = (_action) => {
       this._executeAction(_action);
       return true;
     };
@@ -136,8 +142,9 @@ export class TagixStore<S extends { readonly _tag: string }> {
     for (const middleware of middlewares.reverse()) {
       const mw = middleware(context);
       const currentNext = next;
+      const bridgedNext = currentNext as unknown as (action: Action | AsyncAction) => boolean;
       next = (action) => {
-        const result = mw(currentNext)(action);
+        const result = mw(bridgedNext)(action as unknown as Action | AsyncAction);
         return result !== false;
       };
     }
@@ -165,15 +172,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns The most recent error, or undefined if no errors occurred.
    */
   get lastError(): unknown | undefined {
-    let lastError: unknown | undefined;
-    let maxKey = -1;
-    for (const [key, error] of this._errorHistory) {
-      if (key > maxKey) {
-        maxKey = key;
-        lastError = error;
-      }
-    }
-    return lastError;
+    return this._lastErrorValue;
   }
 
   /**
@@ -195,7 +194,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * All registered action type identifiers.
    */
   get registeredActions(): readonly string[] {
-    return Array.from(this.actions.keys());
+    if (this._actionsDirty) {
+      this._cachedActionKeys = Array.from(this.actions.keys());
+      this._cachedActionsMap = new Map(this.actions);
+      this._actionsDirty = false;
+    }
+    return this._cachedActionKeys;
   }
 
   /**
@@ -208,8 +212,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
   /**
    * Get all registered actions.
    */
-  getActions(): ReadonlyMap<string, Action | AsyncAction> {
-    return new Map(this.actions);
+  getActions(): ReadonlyMap<string, AnyAction> {
+    if (this._actionsDirty) {
+      this._cachedActionKeys = Array.from(this.actions.keys());
+      this._cachedActionsMap = new Map(this.actions);
+      this._actionsDirty = false;
+    }
+    return this._cachedActionsMap;
   }
 
   /**
@@ -266,17 +275,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns Array of errors in the specified category.
    */
   getErrorsByCategory(category: ErrorCategory): readonly unknown[] {
-    const result: unknown[] = [];
-    for (const error of this._errorHistory.values()) {
-      if (isTagixError(error)) {
-        const taggedError = error as TagixErrorObject;
-        const errorCategory = getErrorCategory(taggedError.code);
-        if (errorCategory === category) {
-          result.push(error);
-        }
-      }
-    }
-    return result;
+    return this._errorsByCategoryIndex.get(category) ?? [];
   }
 
   /**
@@ -285,6 +284,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
   clearErrorHistory(): void {
     this._errorHistory.clear();
     this._errorCountByCategory.clear();
+    this._errorCodeIndex.clear();
+    this._errorsByCategoryIndex.clear();
+    this._lastErrorKey = -1;
+    this._lastErrorValue = undefined;
   }
 
   /**
@@ -300,15 +303,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @returns True if at least one error with this code exists.
    */
   hasErrorCode(code: number): boolean {
-    for (const error of this._errorHistory.values()) {
-      if (isTagixError(error)) {
-        const taggedError = error as TagixErrorObject;
-        if (taggedError.code === code) {
-          return true;
-        }
-      }
-    }
-    return false;
+    return (this._errorCodeIndex.get(code) ?? 0) > 0;
   }
 
   /**
@@ -327,16 +322,16 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     if (typeof typeOrAction === "function") {
       const action = (typeOrAction as (payload?: T) => object)(payload);
-      return this._dispatchAction(action as Action | AsyncAction, payload);
+      return this._dispatchAction(action as AnyAction, payload);
     }
 
-    const actionObj = typeOrAction as Action | AsyncAction;
+    const actionObj = typeOrAction as AnyAction;
     if (("type" in actionObj && "handler" in actionObj) || "effect" in actionObj) {
       const effectivePayload = payload !== undefined ? payload : actionObj.payload;
       return this._dispatchAction(actionObj, effectivePayload);
     }
 
-    return this._dispatchAction(typeOrAction as Action | AsyncAction, payload);
+    return this._dispatchAction(typeOrAction as AnyAction, payload);
   }
 
   private _dispatchByType(type: string, _payload: unknown): void | Promise<void> {
@@ -353,36 +348,32 @@ export class TagixStore<S extends { readonly _tag: string }> {
     return this._dispatchAction(action, _payload);
   }
 
-  private _dispatchAction(action: Action | AsyncAction, _payload: unknown): void | Promise<void> {
+  private _dispatchAction(action: AnyAction, _payload: unknown): void | Promise<void> {
     const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
     if (invalidAsyncAction) {
       throw new InvalidActionError(invalidAsyncAction);
     }
 
     if (isAsyncAction(action)) {
-      const asyncAction = action as unknown as AsyncAction<unknown, S, unknown>;
-      (asyncAction as unknown as Record<string, unknown>).payload = _payload;
+      const merged = Object.assign({}, action, { payload: _payload });
+      const asyncAction = merged as unknown as AsyncAction<unknown, S, unknown>;
       this._currentPayload = _payload;
-      const shouldProceed = this._dispatchMiddleware(
-        asyncAction as unknown as Action | AsyncAction
-      );
+      const shouldProceed = this._dispatchMiddleware(merged);
       if (shouldProceed === false) {
         return;
       }
-      const actionPayload = (asyncAction as unknown as Action).payload;
+      const actionPayload = hasProperty(merged, "payload") ? merged.payload : undefined;
       const isValidPayload =
-        actionPayload !== undefined &&
-        !(typeof actionPayload === "number" && isNaN(actionPayload as number));
+        actionPayload !== undefined && !(typeof actionPayload === "number" && isNaN(actionPayload));
       const effectivePayload = isValidPayload ? actionPayload : _payload;
       return this.handleAsyncAction(asyncAction, effectivePayload);
     }
 
-    const syncAction = action as unknown as Action<unknown, S>;
     this._currentPayload = _payload;
-    this._dispatchMiddleware(syncAction as unknown as Action | AsyncAction);
+    this._dispatchMiddleware(action);
   }
 
-  private _executeAction(action: Action | AsyncAction): void {
+  private _executeAction(action: AnyAction): void {
     const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
     if (invalidAsyncAction) {
       throw new InvalidActionError(invalidAsyncAction);
@@ -392,12 +383,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
       return;
     }
 
-    const syncAction = action as any as Action<any, S>;
-    this.handleAction(syncAction, this._currentPayload as any);
+    this.handleAction(action as unknown as Action<unknown, S>, this._currentPayload);
   }
 
   private _getInvalidAsyncActionInfo(
-    action: Action | AsyncAction
+    action: AnyAction
   ): { action: string; reason: string; message: string } | null {
     if (action === null || typeof action !== "object") {
       return null;
@@ -494,12 +484,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     }
 
     const freshState = this.state;
-    const mergedState = this._mergeAsyncState(
-      freshState,
-      pendingState,
-      lastError as unknown,
-      action.onError
-    );
+    const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);
     this.state = mergedState;
     this.recordError(lastError);
     this.notifySubscribers();
@@ -525,12 +510,26 @@ export class TagixStore<S extends { readonly _tag: string }> {
     const timestamp = Date.now() * 1000 + (this._errorTimestampCounter % 1000);
     this._errorHistory.set(timestamp, error);
 
+    this._lastErrorKey = timestamp;
+    this._lastErrorValue = error;
+
     if (isTagixError(error)) {
       const taggedError = error as TagixErrorObject;
-      const category = getErrorCategory(taggedError.code);
+      const code = taggedError.code;
+      const category = getErrorCategory(code);
+
+      this._errorCodeIndex.set(code, (this._errorCodeIndex.get(code) ?? 0) + 1);
+
       if (category) {
         const current = this._errorCountByCategory.get(category) ?? 0;
         this._errorCountByCategory.set(category, current + 1);
+
+        const categoryErrors = this._errorsByCategoryIndex.get(category);
+        if (categoryErrors) {
+          categoryErrors.push(error);
+        } else {
+          this._errorsByCategoryIndex.set(category, [error]);
+        }
       }
     }
 
@@ -540,13 +539,33 @@ export class TagixStore<S extends { readonly _tag: string }> {
         const oldError = this._errorHistory.get(oldestTimestamp);
         if (isTagixError(oldError)) {
           const taggedOld = oldError as TagixErrorObject;
-          const oldCategory = getErrorCategory(taggedOld.code);
+          const oldCode = taggedOld.code;
+          const oldCategory = getErrorCategory(oldCode);
+
+          const codeCount = this._errorCodeIndex.get(oldCode) ?? 1;
+          if (codeCount <= 1) {
+            this._errorCodeIndex.delete(oldCode);
+          } else {
+            this._errorCodeIndex.set(oldCode, codeCount - 1);
+          }
+
           if (oldCategory) {
             const count = this._errorCountByCategory.get(oldCategory) ?? 1;
             if (count <= 1) {
               this._errorCountByCategory.delete(oldCategory);
             } else {
               this._errorCountByCategory.set(oldCategory, count - 1);
+            }
+
+            const categoryErrors = this._errorsByCategoryIndex.get(oldCategory);
+            if (categoryErrors) {
+              const idx = categoryErrors.indexOf(oldError);
+              if (idx !== -1) {
+                categoryErrors.splice(idx, 1);
+              }
+              if (categoryErrors.length === 0) {
+                this._errorsByCategoryIndex.delete(oldCategory);
+              }
             }
           }
         }
@@ -588,11 +607,9 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @param action - The action or async action to register.
    * @remarks Action type is automatically prefixed with `ACTION_TYPE_PREFIX`.
    */
-  register<TPayload>(
-    type: string,
-    action: Action<TPayload, S> | AsyncAction<TPayload, S, any>
-  ): void {
-    this.actions.set(`${ACTION_TYPE_PREFIX}${type}`, action as unknown as Action | AsyncAction);
+  register(type: string, action: AnyAction): void {
+    this.actions.set(`${ACTION_TYPE_PREFIX}${type}`, action);
+    this._actionsDirty = true;
   }
 
   /**
@@ -600,10 +617,11 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @param group - Action group created by `createActionGroup`.
    * @remarks Each action in the group has its type prefixed with the namespace.
    */
-  registerGroup(group: Record<string, Action<any, any> | AsyncAction<any, any, any>>): void {
+  registerGroup(group: Record<string, AnyAction>): void {
     for (const action of Object.values(group)) {
-      this.actions.set(action.type, action as unknown as Action | AsyncAction);
+      this.actions.set(action.type, action);
     }
+    this._actionsDirty = true;
   }
 
   /**
@@ -650,11 +668,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * For properties that may not exist on all variants, returns `unknown | undefined`.
    */
   select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined {
-    return key in this.state
-      ? ((this.state as Record<string, unknown>)[key] as K extends keyof S
-          ? S[K]
-          : unknown | undefined)
-      : (undefined as K extends keyof S ? S[K] : unknown | undefined);
+    if (hasProperty(this.state, key)) {
+      return this.state[key] as K extends keyof S ? S[K] : unknown | undefined;
+    }
+    return undefined as K extends keyof S ? S[K] : unknown | undefined;
   }
 
   /**
