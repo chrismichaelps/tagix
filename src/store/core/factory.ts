@@ -88,7 +88,7 @@ export function fork<S extends { readonly _tag: string }>(store: TagixStore<S>):
 
   const actions = store.getActions();
   for (const [type, action] of actions) {
-    forkStore.register(type.replace("tagix/action/", ""), action as any);
+    forkStore.register(type.replace("tagix/action/", ""), action);
   }
 
   return forkStore;

@@ -118,7 +118,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
   }
 
   private _notifyChange(newState: S): void {
-    this.rootEntry.value = { ...newState };
+    this.rootEntry.value = newState;
 
     for (const sub of this.subscriptions.values()) {
       try {
@@ -134,7 +134,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
   }
 
   private _propagateChange(parentState: S): void {
-    this.rootEntry.value = { ...parentState };
+    this.rootEntry.value = parentState;
 
     for (const sub of this.subscriptions.values()) {
       try {
@@ -235,7 +235,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
     this.subscriptions.set(subscriptionId, {
       entry: this.rootEntry,
       callback: wrappedCallback,
-      unsubscribe: () => {},
+      unsubscribe: () => { },
     });
 
     return () => {
@@ -376,7 +376,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
 
     const actions = tagixStore.getActions();
     for (const [type, action] of actions) {
-      forkStore.register(type.replace("tagix/action/", ""), action as any);
+      forkStore.register(type.replace("tagix/action/", ""), action);
     }
 
     const forkContext = new TagixContext(forkStore, { parent: null });
