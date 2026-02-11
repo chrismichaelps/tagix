@@ -114,6 +114,9 @@ export const partition =
   <T>(predicate: Predicate<T>) =>
   (list: readonly T[]): [readonly T[], readonly T[]] =>
     list.reduce(
-      ([pass, fail], item) => (predicate(item) ? [[...pass, item], fail] : [pass, [...fail, item]]),
-      [[], []] as [readonly T[], readonly T[]]
-    );
+      ([pass, fail], item) => {
+        predicate(item) ? pass.push(item) : fail.push(item);
+        return [pass, fail];
+      },
+      [[], []] as [T[], T[]]
+    ) as [readonly T[], readonly T[]];
