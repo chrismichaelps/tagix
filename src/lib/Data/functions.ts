@@ -1,3 +1,5 @@
+// https://gist.github.com/chrismichaelps/c0a8b3ea083ad2e01357f4f2990bba9a
+
 import { AbsurdError } from "../../store/error";
 import { hasProperty, isFunction } from "./predicate";
 
