@@ -2,23 +2,23 @@
 
 ### Bug Fixes
 
-* _mergeAsyncState uses deep merge for nested objects ([3dca04d](https://github.com/chrismichaelps/tagix/commit/3dca04dc2a86bf42adc4f5b321e6c921faf32733)), closes [#6](https://github.com/chrismichaelps/tagix/issues/6)
-* auto-prefix action type in dispatch() for consistency ([a8c8266](https://github.com/chrismichaelps/tagix/commit/a8c8266b904560bbdc06c4003f0713fb40cc5115)), closes [#1](https://github.com/chrismichaelps/tagix/issues/1)
-* Context.select uses deep equality to skip unnecessary callbacks ([047df32](https://github.com/chrismichaelps/tagix/commit/047df3290109f63200bb0a30fd4629c8dbf384b2)), closes [#4](https://github.com/chrismichaelps/tagix/issues/4)
-* DerivedContext.select subscription tracking ([82d602a](https://github.com/chrismichaelps/tagix/commit/82d602a9b3bedf422085d3fcad0375a779a76753)), closes [#5](https://github.com/chrismichaelps/tagix/issues/5)
-* memoize uses deep equality instead of reference equality ([3fc6afb](https://github.com/chrismichaelps/tagix/commit/3fc6afb8b319ee172261741d662b84238b4e2cee)), closes [#4](https://github.com/chrismichaelps/tagix/issues/4)
-* taggedEnum.State returns state object instead of undefined ([8034416](https://github.com/chrismichaelps/tagix/commit/803441644816cfa9097e96b9bf151d399b76ec7a)), closes [#8](https://github.com/chrismichaelps/tagix/issues/8)
+- \_mergeAsyncState uses deep merge for nested objects ([3dca04d](https://github.com/chrismichaelps/tagix/commit/3dca04dc2a86bf42adc4f5b321e6c921faf32733)), closes [#6](https://github.com/chrismichaelps/tagix/issues/6)
+- auto-prefix action type in dispatch() for consistency ([a8c8266](https://github.com/chrismichaelps/tagix/commit/a8c8266b904560bbdc06c4003f0713fb40cc5115)), closes [#1](https://github.com/chrismichaelps/tagix/issues/1)
+- Context.select uses deep equality to skip unnecessary callbacks ([047df32](https://github.com/chrismichaelps/tagix/commit/047df3290109f63200bb0a30fd4629c8dbf384b2)), closes [#4](https://github.com/chrismichaelps/tagix/issues/4)
+- DerivedContext.select subscription tracking ([82d602a](https://github.com/chrismichaelps/tagix/commit/82d602a9b3bedf422085d3fcad0375a779a76753)), closes [#5](https://github.com/chrismichaelps/tagix/issues/5)
+- memoize uses deep equality instead of reference equality ([3fc6afb](https://github.com/chrismichaelps/tagix/commit/3fc6afb8b319ee172261741d662b84238b4e2cee)), closes [#4](https://github.com/chrismichaelps/tagix/issues/4)
+- taggedEnum.State returns state object instead of undefined ([8034416](https://github.com/chrismichaelps/tagix/commit/803441644816cfa9097e96b9bf151d399b76ec7a)), closes [#8](https://github.com/chrismichaelps/tagix/issues/8)
 
 ### Documentation
 
-* Add badges for npm, license, release workflow, and semantic-release to README. ([68ea63b](https://github.com/chrismichaelps/tagix/commit/68ea63b7594ad548ef7845c0a023052d96acabcb))
-* add installation instructions to README ([0337bec](https://github.com/chrismichaelps/tagix/commit/0337bec778bea950edc2a51cfbf33a7ffbc666d1))
-* apply formatting ([70e66d2](https://github.com/chrismichaelps/tagix/commit/70e66d2ff99771773b6fabe1cd11521ae97a40ba))
-* Remove duplicate 'Installation' heading from README. ([20518c0](https://github.com/chrismichaelps/tagix/commit/20518c0d79f5a68f9547b4163a224c2ee3636301))
+- Add badges for npm, license, release workflow, and semantic-release to README. ([68ea63b](https://github.com/chrismichaelps/tagix/commit/68ea63b7594ad548ef7845c0a023052d96acabcb))
+- add installation instructions to README ([0337bec](https://github.com/chrismichaelps/tagix/commit/0337bec778bea950edc2a51cfbf33a7ffbc666d1))
+- apply formatting ([70e66d2](https://github.com/chrismichaelps/tagix/commit/70e66d2ff99771773b6fabe1cd11521ae97a40ba))
+- Remove duplicate 'Installation' heading from README. ([20518c0](https://github.com/chrismichaelps/tagix/commit/20518c0d79f5a68f9547b4163a224c2ee3636301))
 
 ### CI/CD
 
-* Limit release workflow trigger to changes in source and build configuration files. ([5974555](https://github.com/chrismichaelps/tagix/commit/59745557b559ffcac8ce4ca5cb13c8b8fed1a95d))
+- Limit release workflow trigger to changes in source and build configuration files. ([5974555](https://github.com/chrismichaelps/tagix/commit/59745557b559ffcac8ce4ca5cb13c8b8fed1a95d))
 
 ## 1.0.0 (2026-02-03)
 
