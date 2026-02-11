@@ -49,7 +49,7 @@ const cloneWithType = <T extends Action<any, any> | AsyncAction<any, any, any>>(
  * Each action's type is prefixed with `tagix/action/{namespace}/` to avoid naming collisions.
  * Original actions are not mutated - new cloned actions are returned.
  *
- * - Trailing slashes are handled automatically (`"User/"` → `"User/Login"`)
+ * - Trailing slashes are handled automatically (`"User/"` => `"User/Login"`)
  * - Actions can be dispatched using the group: `store.dispatch(UserActions.login, payload)`
  * - Or by string: `store.dispatch("User/Login", payload)`
  *
