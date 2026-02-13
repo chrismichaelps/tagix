@@ -63,7 +63,7 @@ interface MinimalStore<T> {
   readonly stateValue: T;
   readonly name: string;
   subscribe: (callback: (state: T) => void) => () => void;
-  dispatch: (typeOrAction: string | object, payload?: unknown) => void | Promise<void>;
+  dispatch: (type: string, payload: unknown) => void | Promise<void>;
 }
 
 /**
@@ -320,21 +320,20 @@ export class TagixContext<S extends { readonly _tag: string }> {
 
   /**
    * Dispatches an action to the underlying store.
-   * Supports string-based dispatch and action-object dispatch.
    * @typeParam TPayload - The payload type.
-   * @param typeOrAction - The action type string or action object.
+   * @param type - The action type identifier.
    * @param payload - The action payload.
    * @returns Promise for async actions, void for sync actions.
    * @throws {Error} If context is disposed.
    */
-  dispatch<TPayload>(typeOrAction: string | object, payload?: TPayload): void | Promise<void> {
+  dispatch<TPayload>(type: string, payload: TPayload): void | Promise<void> {
     if (this.disposed) {
       throw new ContextDisposedError({
         action: "dispatch",
         message: "Cannot dispatch on disposed context",
       });
     }
-    return this.store.dispatch(typeOrAction as string, payload);
+    return this.store.dispatch(type, payload);
   }
 
   /**
