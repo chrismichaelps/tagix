@@ -252,7 +252,7 @@ context.dispatch("Increment", { amount: 5 });
 Tagix provides hook utilities for framework integration.
 
 ```ts
-import { useStore, useSelector, useDispatch, useSubscribe } from "tagix/hooks";
+import { useStore, useSelector, useDispatch, useSubscribe } from "tagix";
 
 // Get current state
 const state = useStore(context);

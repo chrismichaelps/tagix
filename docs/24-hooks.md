@@ -7,11 +7,70 @@ description: Type-safe utilities for accessing state and dispatching actions thr
 
 # Hook Utilities
 
-Hook utilities provide convenient functions for accessing state and dispatching actions through a TagixContext. These work with any framework that supports hooks patterns, including React, Vue, Svelte, or vanilla JavaScript.
+Hook utilities provide convenient functions for accessing state and dispatching actions through a `TagixContext`. These work with any framework that supports hooks patterns.
+
+## useMatch
+
+Exhaustive pattern matching on the current state. Every variant tag must be handled — the compiler enforces exhaustiveness. Returns the union of all handler return types.
+
+```ts
+const name = useMatch(context, {
+  LoggedIn: (s) => s.name,
+  LoggedOut: () => "Guest",
+});
+// name is inferred as string
+```
+
+## useWhen
+
+Narrow the current state to a single variant by tag. Returns the variant's properties (without `_tag`) if matched, `undefined` otherwise.
+
+```ts
+const user = useWhen(context, "LoggedIn");
+if (user) {
+  console.log(user.name); // fully typed
+}
+```
+
+## useDispatch
+
+Returns a typed dispatch function. Supports **action-object dispatch** (recommended) for full type safety, and legacy string-based dispatch.
+
+```ts
+const dispatch = useDispatch(context);
+
+// Recommended: Typed dispatch with action reference
+dispatch(loginAction, { username: "chris" });
+
+// Legacy: String-based dispatch (deprecated)
+dispatch("Login", { username: "chris" });
+```
+
+## useActionGroup
+
+Create typed dispatchers from an action group. Each key in the group becomes a typed method.
+
+```ts
+const UserActions = createActionGroup("Auth", { login, logout });
+const dispatch = useActionGroup(context, UserActions);
+
+dispatch.login({ username: "chris" }); // fully typed
+```
+
+## useMatchPartial
+
+Non-exhaustive pattern matching. Only handles specify variants; others return `undefined`.
+
+```ts
+const greeting = useMatchPartial(context, {
+  LoggedIn: (s) => `Welcome, ${s.name}`,
+});
+// greeting: string | undefined
+```
 
 ## useStore
 
-Returns the current state from a context.
+Returns the current state snapshot from a context.
 
 ```ts
 const state = useStore(context);
@@ -19,92 +78,56 @@ const state = useStore(context);
 
 ## useSelector
 
-Returns a derived value from state. The selector runs once to get the current value.
+Returns a derived value from state via a selector function.
 
 ```ts
-const userName = useSelector(context, (state) =>
-  state._tag === "Authenticated" ? state.user?.name : null
-);
+const itemCount = useSelector(context, (s) => (s._tag === "Items" ? s.items.length : 0));
 ```
 
 ## useSubscribe
 
-Calls a callback whenever state changes. Returns an unsubscribe function.
+Listen for state changes with a callback. Returns an unsubscribe function.
 
 ```ts
 const unsubscribe = useSubscribe(context, (state) => {
-  console.log("State changed:", state);
+  console.log("New state:", state._tag);
 });
-```
-
-## useKey
-
-Returns a specific property from state.
-
-```ts
-const count = useKey(context, "count");
-```
-
-## useDispatch
-
-Returns a dispatch function for sending actions.
-
-```ts
-const dispatch = useDispatch(context);
-dispatch("Increment", { amount: 1 });
 ```
 
 ## createSelector
 
-Creates a selector function that you can call multiple times. Each call returns the current value from state.
+Build a selector function that reads the latest state every time it's called.
 
 ```ts
-const getUserName = createSelector(context, (state) => state.user?.name);
-const name = getUserName();
+const getName = createSelector(context, (s) => s.user?.name);
+const name = getName();
 ```
 
-## useGetState
+---
 
-Get a type-safe way to read state properties by variant tag. IDE will autocomplete the tag names and their properties.
+## Legacy / Deprecated Hooks
 
-```ts
-const getUserState = useGetState<UserStateType>();
-const context = createContext(store);
+These hooks are preserved for backward compatibility but will be removed in the next major version.
 
-// Get a single property
-const name = getUserState(context)("LoggedIn", "name");
+### useGetState
 
-// Or get the whole props object for a tag
-const userProps = getUserState(context)("LoggedIn");
-if (userProps) {
-  console.log(userProps.name);
-  console.log(userProps.email);
-}
-```
+**Deprecated**: Use `useMatch` or `useWhen` instead. Requires manual generics and double-currying.
 
-## getStateProp
+### useKey
 
-Read a specific property from a state object using its variant tag. Works with any state object, not just contexts.
+**Deprecated**: Use `useWhen` or `useMatch` instead to ensure variant-aware access.
 
-```ts
-const state = store.getCurrent();
+### getStateProp
 
-// Get a single property
-const name = getStateProp(state)("LoggedIn", "name");
+**Deprecated**: Use `$match` on the tagged enum constructor directly.
 
-// Or get the whole props object for a tag
-const userProps = getStateProp(state)("LoggedIn");
-if (userProps) {
-  console.log(userProps.name);
-  console.log(userProps.email);
-}
-```
+---
 
 ## Complete Example
 
 ```ts
-import { createContext, createStore, createAction, taggedEnum } from "tagix";
-import { useStore, useSelector, useDispatch, useGetState } from "tagix/hooks";
+import { createContext, createStore, createAction, taggedEnum, createActionGroup } from "tagix";
+import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix";
 
 const UserState = taggedEnum({
   LoggedOut: {},
@@ -113,34 +136,31 @@ const UserState = taggedEnum({
 
 const login = createAction("Login")
   .withPayload({ username: "" })
-  .withState((_, payload) => UserState.LoggedIn({ name: payload.username, email: "" }));
+  .withState((_, p) => UserState.LoggedIn({ name: p.username, email: "" }));
+
+const UserActions = createActionGroup("Auth", { login });
 
 const store = createStore(UserState.LoggedOut({}), UserState);
+store.registerGroup(UserActions);
 const context = createContext(store);
 
-store.register("Login", login);
+// 1. Exhaustive matching
+const name = useMatch(context, {
+  LoggedIn: (s) => s.name,
+  LoggedOut: () => "Visitor",
+});
 
-// Using hooks
-const state = useStore(context);
-const userName = useSelector(context, (s) => (s._tag === "LoggedIn" ? s.name : null));
-const dispatch = useDispatch(context);
-const getUserState = useGetState<UserStateType>()(context);
-
-dispatch("Login", { username: "chris" });
-
-// Read state properties with autocomplete
-const name = getUserState("LoggedIn", "name");
-const userProps = getUserState("LoggedIn");
-
-if (userProps) {
-  console.log(name); // "chris"
-  console.log(userProps.name); // "chris"
-  console.log(userProps.email); // ""
+// 2. Structural narrowing
+const user = useWhen(context, "LoggedIn");
+if (user) {
+  console.log(user.email);
 }
+
+// 3. Typed dispatch (Action Group)
+const dispatch = useActionGroup(context, UserActions);
+dispatch.login({ username: "chris" });
+
+// 4. Typed dispatch (Individual Action)
+const directDispatch = useDispatch(context);
+directDispatch(login, { username: "michael" });
 ```
-
-## See Also
-
-- [Context](22-context.md) - Create a context from a store
-- [Selectors](20-selectors.md) - Additional selector utilities
-- [Actions](11-actions.md) - State transitions
