@@ -127,7 +127,7 @@ These hooks are preserved for backward compatibility but will be removed in the 
 
 ```ts
 import { createContext, createStore, createAction, taggedEnum, createActionGroup } from "tagix";
-import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix/hooks";
+import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix";
 
 const UserState = taggedEnum({
   LoggedOut: {},

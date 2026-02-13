@@ -95,7 +95,7 @@ const userName = useSelector(context, (s) => (s._tag === "LoggedIn" ? s.name : n
 
 ```ts
 import { createContext, createStore, createAction, taggedEnum, createActionGroup } from "tagix";
-import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix/hooks";
+import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix";
 
 const UserState = taggedEnum({
   LoggedOut: {},
