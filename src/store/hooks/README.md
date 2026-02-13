@@ -8,11 +8,66 @@ category: State Management
 
 # Hook Utilities
 
-Simple utilities for accessing state and dispatching actions through a TagixContext.
+Type-safe utilities for accessing state and dispatching actions through a `TagixContext`.
+
+## useMatch
+
+Exhaustive pattern matching on the current state. Every variant tag must be handled — the compiler enforces exhaustiveness. Returns the union of all handler return types.
+
+```ts
+const name = useMatch(context, {
+  LoggedIn: (s) => s.name,
+  LoggedOut: () => "Guest",
+});
+// name: string
+```
+
+## useWhen
+
+Narrow the current state to a single variant by tag. Returns the variant's properties (without `_tag`) if matched, `undefined` otherwise.
+
+```ts
+const user = useWhen(context, "LoggedIn");
+if (user) {
+  console.log(user.name); // fully typed
+}
+```
+
+## useDispatch
+
+Returns a typed dispatch function. Supports **action-object dispatch** (recommended) for full type safety, and legacy string-based dispatch.
+
+```ts
+const dispatch = useDispatch(context);
+
+// Recommended: Typed dispatch with action reference
+dispatch(loginAction, { username: "chris" });
+```
+
+## useActionGroup
+
+Create typed dispatchers from an action group. Each key in the group becomes a typed method.
+
+```ts
+const UserActions = createActionGroup("Auth", { login, logout });
+const dispatch = useActionGroup(context, UserActions);
+
+dispatch.login({ username: "chris" }); // fully typed
+```
+
+## useMatchPartial
+
+Non-exhaustive pattern matching. Only handles specified variants; others return `undefined`.
+
+```ts
+const greeting = useMatchPartial(context, {
+  LoggedIn: (s) => `Welcome, ${s.name}`,
+});
+```
 
 ## useStore
 
-Returns the current state from a context.
+Returns the current state snapshot from a context.
 
 ```ts
 const state = useStore(context);
@@ -20,92 +75,27 @@ const state = useStore(context);
 
 ## useSelector
 
-Returns a derived value from state. The selector runs once to get the current value.
+Returns a derived value from state via a selector function.
 
 ```ts
-const userName = useSelector(context, (state) =>
-  state._tag === "Authenticated" ? state.user?.name : null
-);
+const userName = useSelector(context, (s) => (s._tag === "LoggedIn" ? s.name : null));
 ```
 
-## useSubscribe
+---
 
-Calls a callback whenever state changes. Returns an unsubscribe function.
+## Legacy / Deprecated Hooks
 
-```ts
-const unsubscribe = useSubscribe(context, (state) => {
-  console.log("State changed:", state);
-});
-```
+- **useGetState**: Deprecated. Use `useMatch` or `useWhen` instead.
+- **useKey**: Deprecated. Use `useWhen` or `useMatch` instead.
+- **getStateProp**: Deprecated. Use `$match` on the tagged enum constructor directly.
 
-## useKey
-
-Returns a specific property from state.
-
-```ts
-const count = useKey(context, "count");
-```
-
-## useDispatch
-
-Returns a dispatch function for sending actions.
-
-```ts
-const dispatch = useDispatch(context);
-dispatch("Increment", { amount: 1 });
-```
-
-## createSelector
-
-Creates a selector function that you can call multiple times. Each call returns the current value from state.
-
-```ts
-const getUserName = createSelector(context, (state) => state.user?.name);
-const name = getUserName();
-```
-
-## useGetState
-
-Get a type-safe way to read state properties by variant tag. IDE will autocomplete the tag names and their properties.
-
-```ts
-const getUserState = useGetState<UserStateType>();
-const context = createContext(store);
-
-// Get a single property
-const name = getUserState(context)("LoggedIn", "name");
-
-// Or get the whole props object for a tag
-const userProps = getUserState(context)("LoggedIn");
-if (userProps) {
-  console.log(userProps.name);
-  console.log(userProps.email);
-}
-```
-
-## getStateProp
-
-Read a specific property from a state object using its variant tag. Works with any state object, not just contexts.
-
-```ts
-const state = store.getCurrent();
-
-// Get a single property
-const name = getStateProp(state)("LoggedIn", "name");
-
-// Or get the whole props object for a tag
-const userProps = getStateProp(state)("LoggedIn");
-if (userProps) {
-  console.log(userProps.name);
-  console.log(userProps.email);
-}
-```
+---
 
 ## Complete Example
 
 ```ts
-import { createContext, createStore, createAction, taggedEnum } from "tagix";
-import { useStore, useSelector, useDispatch, useGetState } from "tagix/hooks";
+import { createContext, createStore, createAction, taggedEnum, createActionGroup } from "tagix";
+import { useMatch, useWhen, useDispatch, useActionGroup } from "tagix/hooks";
 
 const UserState = taggedEnum({
   LoggedOut: {},
@@ -114,30 +104,29 @@ const UserState = taggedEnum({
 
 const login = createAction("Login")
   .withPayload({ username: "" })
-  .withState((_, payload) => UserState.LoggedIn({ name: payload.username, email: "" }));
+  .withState((_, p) => UserState.LoggedIn({ name: p.username, email: "" }));
+
+const UserActions = createActionGroup("Auth", { login });
 
 const store = createStore(UserState.LoggedOut({}), UserState);
+store.registerGroup(UserActions);
 const context = createContext(store);
 
-store.register("Login", login);
+// 1. Exhaustive matching
+const name = useMatch(context, {
+  LoggedIn: (s) => s.name,
+  LoggedOut: () => "Visitor",
+});
 
-// Using hooks
-const state = useStore(context);
-const userName = useSelector(context, (s) => (s._tag === "LoggedIn" ? s.name : null));
-const dispatch = useDispatch(context);
-const getUserState = useGetState<UserStateType>()(context);
-
-dispatch("Login", { username: "chris" });
-
-// Read state properties with autocomplete
-const name = getUserState("LoggedIn", "name");
-const userProps = getUserState("LoggedIn");
-
-if (userProps) {
-  console.log(name); // "chris"
-  console.log(userProps.name); // "chris"
-  console.log(userProps.email); // ""
+// 2. Structural narrowing
+const user = useWhen(context, "LoggedIn");
+if (user) {
+  console.log(user.name);
 }
+
+// 3. Typed dispatch (Action Group)
+const dispatch = useActionGroup(context, UserActions);
+dispatch.login({ username: "chris" });
 ```
 
 ## Related
