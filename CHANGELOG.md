@@ -1,3 +1,19 @@
+## [1.2.0](https://github.com/chrismichaelps/tagix/compare/v1.1.0...v1.2.0) (2026-02-13)
+
+### Features
+
+* Implement pattern matching hooks (, , ) for tagged union states and enhance  with action-object typing Ref: [#26](https://github.com/chrismichaelps/tagix/issues/26) ([362c636](https://github.com/chrismichaelps/tagix/commit/362c6360709a13db4e68e076ac90dab6cc96a531))
+* Implement pattern matching hooks (, , ) for tagged union states and enhance  with action-object typing. ([920694a](https://github.com/chrismichaelps/tagix/commit/920694a950ade9ca5198a98166a43987acb5eb4f))
+* Implement pattern matching hooks (useMatch, useMatchPartial, useWhen) for tagged union states and enhance useDispatch with action-object typing. ([7f85bbf](https://github.com/chrismichaelps/tagix/commit/7f85bbf3be70125e1164f11bdec27741a06b9db4)), closes [#26](https://github.com/chrismichaelps/tagix/issues/26)
+
+### Documentation
+
+* Update hook utilities documentation to introduce new type-safe pattern matching and dispatching hooks and deprecate older ones. ([f750778](https://github.com/chrismichaelps/tagix/commit/f750778edc4f1a8b2b086e197477db6ab4a54c1c))
+
+### Code Refactoring
+
+* update hook imports from tagix/hooks to tagix in documentation and examples. ([5173dc3](https://github.com/chrismichaelps/tagix/commit/5173dc374b7f0b265b91475882b806300049f929))
+
 ## [1.1.0](https://github.com/chrismichaelps/tagix/compare/v1.0.1...v1.1.0) (2026-02-11)
 
 ### Features
