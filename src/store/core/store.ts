@@ -92,6 +92,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private readonly _errorCountByCategory: Map<ErrorCategory, number> = new Map();
   private readonly _errorCodeIndex: Map<number, number> = new Map();
   private readonly _errorsByCategoryIndex: Map<ErrorCategory, unknown[]> = new Map();
+  private _dispatchContext: unknown = null;
   private readonly subscribers: Set<SubscribeCallback<S>> = new Set();
   private readonly config: Required<StoreConfig<S>>;
   private readonly _validStateTags: Set<string>;
@@ -219,6 +220,30 @@ export class TagixStore<S extends { readonly _tag: string }> {
       this._actionsDirty = false;
     }
     return this._cachedActionsMap;
+  }
+
+  /**
+   * @internal
+   * Sets the context for the current dispatch operation.
+   */
+  _setDispatchContext(context: unknown): void {
+    this._dispatchContext = context;
+  }
+
+  /**
+   * @internal
+   * Gets the context for the current dispatch operation.
+   */
+  _getDispatchContext(): unknown {
+    return this._dispatchContext;
+  }
+
+  /**
+   * @internal
+   * Clears the dispatch context after dispatch completes.
+   */
+  _clearDispatchContext(): void {
+    this._dispatchContext = null;
   }
 
   /**
@@ -411,10 +436,18 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {
+    const context = this._dispatchContext;
+    const handler =
+      context && action.handlerWithContext
+        ? (state: S, p: TPayload) => action.handlerWithContext!(state, p, context)
+        : action.handler;
+
     const result = tryCatch<S, Error>(
-      () => action.handler(this.state, payload),
+      () => handler(this.state, payload),
       (err) => (err instanceof Error ? err : new Error(String(err)))
     );
+
+    this._clearDispatchContext();
 
     match(result, {
       onLeft: (error: Error) => {
@@ -440,6 +473,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     payload: TPayload
   ): Promise<void> {
     const maxRetries = this.config.maxRetries;
+    const context = this._dispatchContext;
     let attempt = 0;
     let lastError: unknown;
     const baselineState = this.state;
@@ -450,7 +484,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     while (attempt <= maxRetries) {
       const result = await tryCatchAsync(
-        () => action.effect(payload),
+        () => action.effect(payload, context),
         (err) => err
       );
 
@@ -480,8 +514,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
         },
       });
 
-      if (done) return;
+      if (done) {
+        this._clearDispatchContext();
+        return;
+      }
     }
+
+    this._clearDispatchContext();
 
     const freshState = this.state;
     const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);

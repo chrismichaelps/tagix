@@ -43,6 +43,7 @@ You should consider Tagix when your application has complex state logic, multipl
 | [Context](22-context.md)               | Framework-agnostic integration   |
 | [Error Handling](23-error-handling.md) | Handle errors gracefully         |
 | [Hooks](24-hooks.md)                   | Type-safe state access utilities |
+| [Services](25-services.md)             | Manage application dependencies  |
 
 ## Advanced Topics
 

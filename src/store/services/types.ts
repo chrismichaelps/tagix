@@ -22,28 +22,18 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
-export * from "./types";
-export * from "./constants";
-export * from "./error-names";
-export * from "./error";
-export * from "./core";
-export * from "./actions";
-export * from "./guards";
-export * from "./match";
-export * from "./context";
-export * from "./hooks";
-export * from "./services";
-export {
-  patch,
-  getState,
-  select,
-  pluck,
-  combineSelectors,
-  memoize,
-  getOrDefault,
-} from "./selectors";
-export { createLoggerMiddleware } from "./middlewares/logger";
-export { deriveStore, DerivedStore } from "./derived";
-export type { DerivedStoreConfig } from "./derived";
+export interface ServiceTag<T> {
+  readonly _tag: unique symbol;
+  readonly _service: T;
+  readonly _name: string;
+}
 
-export * from "../lib/Data";
+export type ServiceImplementation<T> = T;
+
+export type ServiceRegistryInput = Record<string, ServiceTag<unknown>>;
+
+export type ServiceRegistry = Record<string, ServiceTag<unknown>>;
+
+export type ServiceImplementations<T extends ServiceRegistry> = {
+  [K in keyof T]: T[K] extends ServiceTag<infer S> ? S : never;
+};
