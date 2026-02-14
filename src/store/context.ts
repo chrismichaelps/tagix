@@ -28,6 +28,7 @@ import { isFunction, isRecord } from "../lib/Data/predicate";
 import { none, some, type Option } from "../lib/Data/option";
 import { deepEqual } from "./selectors";
 import { ContextDisposedError } from "./error";
+import type { ServiceTag } from "./services/types";
 
 /**
  * Unique identifier for context entries and subcontexts.
@@ -72,11 +73,12 @@ interface MinimalStore<T> {
  * @remarks Manages subscriptions, child contexts, and provides dependency injection via `provide` method.
  */
 export class TagixContext<S extends { readonly _tag: string }> {
-  private store: MinimalStore<S>;
+  private store: TagixStore<S>;
   private rootEntry: ContextEntry<S>;
   private subscriptions: Map<ContextId, ContextSubscription> = new Map();
   private childContexts: Set<TagixContext<{ readonly _tag: string }>> = new Set();
   private derivedContexts: Set<DerivedContext<S, unknown>> = new Set();
+  private services: Map<ServiceTag<unknown>, unknown> = new Map();
   private _id: ContextId;
   private disposed = false;
   private errorHandler?: (error: unknown) => void;
@@ -199,6 +201,59 @@ export class TagixContext<S extends { readonly _tag: string }> {
     this.derivedContexts.add(subContext);
 
     return subContext as unknown as TagixContext<S>;
+  }
+
+  /**
+   * Provides a service implementation to the context.
+   * @typeParam T - The service type.
+   * @param tag - The service tag.
+   * @param implementation - The service implementation.
+   * @returns The context for chaining.
+   * @throws {Error} If context is disposed.
+   */
+  provideService<T>(tag: ServiceTag<T>, implementation: T): TagixContext<S> {
+    if (this.disposed) {
+      throw new ContextDisposedError({
+        action: "provideService",
+        message: "Cannot provide service on disposed context",
+      });
+    }
+    this.services.set(tag as ServiceTag<unknown>, implementation);
+    return this;
+  }
+
+  /**
+   * Gets a service from the context.
+   * @typeParam T - The service type.
+   * @param tag - The service tag.
+   * @returns The service implementation.
+   * @throws {Error} If context is disposed or service not found.
+   */
+  getService<T>(tag: ServiceTag<T>): T {
+    if (this.disposed) {
+      throw new ContextDisposedError({
+        action: "getService",
+        message: "Cannot get service from disposed context",
+      });
+    }
+    const service = this.services.get(tag as ServiceTag<unknown>);
+    if (service === undefined) {
+      throw new Error(`Service ${tag._name} has not been provided`);
+    }
+    return service as T;
+  }
+
+  /**
+   * Gets an optional service from the context.
+   * @typeParam T - The service type.
+   * @param tag - The service tag.
+   * @returns The service implementation or undefined.
+   */
+  getServiceOptional<T>(tag: ServiceTag<T>): T | undefined {
+    if (this.disposed) {
+      return undefined;
+    }
+    return this.services.get(tag as ServiceTag<unknown>) as T | undefined;
   }
 
   /**
@@ -333,6 +388,10 @@ export class TagixContext<S extends { readonly _tag: string }> {
         action: "dispatch",
         message: "Cannot dispatch on disposed context",
       });
+    }
+    const tagixStore = this.store as { _setDispatchContext: (c: unknown) => void };
+    if (tagixStore._setDispatchContext) {
+      tagixStore._setDispatchContext(this);
     }
     return this.store.dispatch(typeOrAction as string, payload);
   }
@@ -554,6 +613,24 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
     this.childContexts.add(subContext as unknown as TagixContext<{ readonly _tag: string }>);
 
     return subContext as unknown as TagixContext<S>;
+  }
+
+  provideService<T>(tag: ServiceTag<T>, implementation: T): TagixContext<S> {
+    if (this.disposed) {
+      throw new ContextDisposedError({
+        action: "provideService",
+        message: "Cannot provide service on disposed context",
+      });
+    }
+    return this.parentContext.provideService(tag, implementation) as unknown as TagixContext<S>;
+  }
+
+  getService<T>(tag: ServiceTag<T>): T {
+    return this.parentContext.getService(tag);
+  }
+
+  getServiceOptional<T>(tag: ServiceTag<T>): T | undefined {
+    return this.parentContext.getServiceOptional(tag);
   }
 
   select<U>(selector: (state: S) => U, callback: (value: U) => void): () => void {

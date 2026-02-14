@@ -22,28 +22,10 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
-export * from "./types";
-export * from "./constants";
-export * from "./error-names";
-export * from "./error";
-export * from "./core";
-export * from "./actions";
-export * from "./guards";
-export * from "./match";
-export * from "./context";
-export * from "./hooks";
-export * from "./services";
-export {
-  patch,
-  getState,
-  select,
-  pluck,
-  combineSelectors,
-  memoize,
-  getOrDefault,
-} from "./selectors";
-export { createLoggerMiddleware } from "./middlewares/logger";
-export { deriveStore, DerivedStore } from "./derived";
-export type { DerivedStoreConfig } from "./derived";
-
-export * from "../lib/Data";
+export type {
+  ServiceTag,
+  ServiceImplementation,
+  ServiceRegistry,
+  ServiceRegistryInput,
+} from "./types";
+export { createServiceTag, createServiceRegistry } from "./factory";

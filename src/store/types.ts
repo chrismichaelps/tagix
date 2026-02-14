@@ -51,6 +51,8 @@ export interface Action<TPayload = never, TState = never> {
   readonly payload: TPayload;
   /** State transition function. @param state - Current state. @param payload - Payload from dispatch call. @returns New state. */
   readonly handler: (state: TState, payload: TPayload) => TState;
+  /** Optional service-aware handler that receives context. */
+  readonly handlerWithContext?: (state: TState, payload: TPayload, context: unknown) => TState;
 }
 
 /**
@@ -66,8 +68,8 @@ export interface AsyncAction<TPayload = never, TState = never, TError = never> {
   readonly payload: TPayload;
   /** Pre-effect state update (runs immediately on dispatch). */
   readonly state: (currentState: TState) => TState;
-  /** Side effect to execute (awaits completion). @param payload - Payload from dispatch. @returns Effect result. */
-  readonly effect: (payload: TPayload) => Promise<unknown>;
+  /** Side effect to execute (awaits completion). @param payload - Payload from dispatch. @param context - TagixContext if provided. @returns Effect result. */
+  readonly effect: (payload: TPayload, context: unknown) => Promise<unknown>;
   /** Success handler (runs after effect resolves). */
   readonly onSuccess: (currentState: TState, result: unknown) => TState;
   /** Error handler (runs if effect rejects or throws). */
