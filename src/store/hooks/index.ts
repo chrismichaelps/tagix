@@ -24,6 +24,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 
 import type { TagixContext } from "../context";
 import type { Action, AsyncAction } from "../types";
+import type { ServiceTag } from "../services/types";
 
 type ExtractTag<S extends { readonly _tag: string }> = S extends { readonly _tag: infer T }
   ? T extends string
@@ -441,3 +442,46 @@ export function useKey<S extends { readonly _tag: string }, K extends keyof S>(
  * @internal
  */
 export { useGetStateRaw, getStatePropRaw };
+
+/**
+ * Gets a service from the context.
+ * @typeParam T - The service type.
+ * @param context - The context to get the service from.
+ * @param tag - The service tag.
+ * @returns The service implementation.
+ * @throws {Error} If the service has not been provided.
+ *
+ * @example
+ * ```ts
+ * const db = useService(context, Database);
+ * const user = await db.findUser("123");
+ * ```
+ */
+export function useService<S extends { readonly _tag: string }, T>(
+  context: TagixContext<S>,
+  tag: ServiceTag<T>
+): T {
+  return context.getService(tag);
+}
+
+/**
+ * Gets an optional service from the context.
+ * @typeParam T - The service type.
+ * @param context - The context to get the service from.
+ * @param tag - The service tag.
+ * @returns The service implementation or undefined.
+ *
+ * @example
+ * ```ts
+ * const analytics = useServiceOptional(context, Analytics);
+ * if (analytics) {
+ *   analytics.track("event", data);
+ * }
+ * ```
+ */
+export function useServiceOptional<S extends { readonly _tag: string }, T>(
+  context: TagixContext<S>,
+  tag: ServiceTag<T>
+): T | undefined {
+  return context.getServiceOptional(tag);
+}

@@ -23,6 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import type { Action, AsyncAction } from "../types";
+import type { TagixContext } from "../context";
 import { ACTION_TYPE_PREFIX } from "../constants";
 
 /**
@@ -37,6 +38,13 @@ interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
   withState(
     handler: (state: RelaxedState<TState>, payload: TPayload) => TState
   ): Action<TPayload, TState>;
+  withHandler(
+    handler: (
+      state: RelaxedState<TState>,
+      payload: TPayload,
+      context: TagixContext<TState>
+    ) => TState
+  ): Action<TPayload, TState>;
 }
 
 interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string }, TEffect> {
@@ -44,7 +52,7 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
     stateFn: (currentState: RelaxedState<TState>) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   effect(
-    effectFn: (payload: TPayload) => Promise<TEffect>
+    effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TEffect>
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onSuccess(
     handler: (currentState: RelaxedState<TState>, result: TEffect) => TState
@@ -73,6 +81,9 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
 ): ActionBuilder<TPayload, S> {
   let payload: TPayload | undefined;
   let handler: ((state: S, payload: TPayload) => S) | undefined;
+  let handlerWithContext:
+    | ((state: S, payload: TPayload, context: TagixContext<S>) => S)
+    | undefined;
 
   return {
     withPayload(p): ActionBuilder<TPayload, S> {
@@ -85,6 +96,17 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
         type: `${ACTION_TYPE_PREFIX}${type}`,
         payload: payload!,
         handler: handler!,
+      } as Action<TPayload, S>;
+    },
+    withHandler(h): Action<TPayload, S> {
+      handlerWithContext = h;
+      return {
+        type: `${ACTION_TYPE_PREFIX}${type}`,
+        payload: payload!,
+        handler: () => {
+          throw new Error("Handler with context must be called via context");
+        },
+        handlerWithContext: handlerWithContext!,
       } as Action<TPayload, S>;
     },
   };
@@ -116,7 +138,8 @@ export function createAsyncAction<
   TEffect = unknown,
 >(type: string): AsyncActionBuilder<TPayload, S, TEffect> {
   let stateFn: (currentState: S) => S = (s) => s;
-  let effectFn: (payload: TPayload) => Promise<TEffect> = async () => undefined as TEffect;
+  let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<TEffect> = async () =>
+    undefined as TEffect;
   let onSuccessFn: (currentState: S, result: TEffect) => S = (s) => s;
   let onErrorFn: (currentState: S, error: unknown) => S = (s) => s;
   let payload: TPayload | undefined;

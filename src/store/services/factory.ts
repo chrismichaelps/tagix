@@ -22,28 +22,28 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
-export * from "./types";
-export * from "./constants";
-export * from "./error-names";
-export * from "./error";
-export * from "./core";
-export * from "./actions";
-export * from "./guards";
-export * from "./match";
-export * from "./context";
-export * from "./hooks";
-export * from "./services";
-export {
-  patch,
-  getState,
-  select,
-  pluck,
-  combineSelectors,
-  memoize,
-  getOrDefault,
-} from "./selectors";
-export { createLoggerMiddleware } from "./middlewares/logger";
-export { deriveStore, DerivedStore } from "./derived";
-export type { DerivedStoreConfig } from "./derived";
+import type { ServiceTag, ServiceRegistryInput, ServiceRegistry } from "./types";
 
-export * from "../lib/Data";
+const serviceTagCache = new Map<string, ServiceTag<unknown>>();
+
+export function createServiceTag<T>(name: string): ServiceTag<T> {
+  const cached = serviceTagCache.get(name) as ServiceTag<T> | undefined;
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const tag: ServiceTag<T> = {
+    _tag: Symbol(name) as ServiceTag<T>["_tag"],
+    _service: null as unknown as T,
+    _name: name,
+  };
+
+  serviceTagCache.set(name, tag as ServiceTag<unknown>);
+  return tag;
+}
+
+export function createServiceRegistry<T extends ServiceRegistryInput>(
+  input: T
+): T & ServiceRegistry {
+  return input as T & ServiceRegistry;
+}
