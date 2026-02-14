@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/chrismichaelps/tagix/compare/v1.2.0...v1.2.1) (2026-02-14)
+
+### Documentation
+
+* add detailed service system documentation Ref: [#28](https://github.com/chrismichaelps/tagix/issues/28) ([0b8def4](https://github.com/chrismichaelps/tagix/commit/0b8def4b2f3d80d59cd8a9badf59efef7a49860d))
+
 ## [1.2.0](https://github.com/chrismichaelps/tagix/compare/v1.1.0...v1.2.0) (2026-02-13)
 
 ### Features
