@@ -1,3 +1,9 @@
+## [1.2.2](https://github.com/chrismichaelps/tagix/compare/v1.2.1...v1.2.2) (2026-02-24)
+
+### Bug Fixes
+
+* state transitions and property bleeding in createAsyncAction ([589592c](https://github.com/chrismichaelps/tagix/commit/589592c61c4828371bc9a697f2e67f0c8e302ce4)), closes [#30](https://github.com/chrismichaelps/tagix/issues/30)
+
 ## [1.2.1](https://github.com/chrismichaelps/tagix/compare/v1.2.0...v1.2.1) (2026-02-14)
 
 ### Documentation
