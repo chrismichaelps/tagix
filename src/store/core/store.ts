@@ -116,11 +116,20 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
     this._validStateTags = new Set();
 
-    for (const key of Object.keys(initialState)) {
-      if (key === "_tag") continue;
-      const ctor = stateConstructor as Record<string, unknown>;
-      if (hasProperty(ctor, key) && isFunction(ctor[key])) {
+    const stateCtor = stateConstructor as TaggedEnumConstructor<S> & { State?: object };
+    if (stateCtor.State) {
+      for (const key of Object.keys(stateCtor.State)) {
         this._validStateTags.add(key);
+      }
+    }
+
+    if (this._validStateTags.size === 0) {
+      for (const key of Object.keys(initialState)) {
+        if (key === "_tag") continue;
+        const ctor = stateConstructor as { [key: string]: unknown };
+        if (hasProperty(ctor, key) && isFunction(ctor[key])) {
+          this._validStateTags.add(key);
+        }
       }
     }
 
@@ -535,13 +544,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     handlerInput: unknown,
     handler: (state: S, input: unknown) => S
   ): S {
-    if (freshState._tag !== pendingState._tag) {
-      return handler(freshState, handlerInput);
-    }
-
-    const handlerResult = handler(freshState, handlerInput);
-
-    return deepMerge(freshState, handlerResult) as S;
+    return handler(freshState, handlerInput);
   }
 
   private recordError(error: unknown): void {
