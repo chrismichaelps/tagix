@@ -21,7 +21,7 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
-const store = createStore(CounterState.Idle({ value: 0 }), {
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
   name: "Counter",
 });
 
@@ -210,7 +210,7 @@ const CounterState = taggedEnum({
   Error: { message: "" },
 });
 
-const store = createStore(CounterState.Idle({ value: 0 }), {
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
   name: "Counter",
 });
 

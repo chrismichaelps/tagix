@@ -137,7 +137,7 @@ import { services, Database, Logger } from "./services/registry";
 import { createDatabase } from "./services/implementations/api_database";
 import { createLogger } from "./services/implementations/console_logger";
 
-const store = createStore(initialState);
+const store = createStore(initialState, AppState);
 const context = createContext(store)
   .provideService(services.database, createDatabase("https://api.example.com"))
   .provideService(services.logger, createLogger("MyApp"));
@@ -148,24 +148,25 @@ const context = createContext(store)
 ### Synchronous Actions
 
 ```ts
-import { createAction } from "tagix";
+import { createAsyncAction } from "tagix";
 import { Database, Logger } from "./services/registry";
 
-const createUser = createAction("CreateUser")
-  .withPayload<{ name: string; email: string }>()
-  .withHandler(async (state, payload, context) => {
+// `withHandler` runs synchronously, so any awaited service call (database,
+// network) must go through `createAsyncAction().effect(...)`, not `withHandler`.
+// Async payload types come from the generic parameters, not a `withPayload`
+// call: `createAsyncAction<Payload, State, EffectResult>("Name")`.
+const createUser = createAsyncAction<{ name: string; email: string }, AppState, User>("CreateUser")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async (payload, context) => {
     const db = context.getService(Database);
     const logger = context.getService(Logger);
 
     logger.info(`Creating user: ${payload.email}`);
 
-    const user = await db.createUser({
-      name: payload.name,
-      email: payload.email,
-    });
-
-    return { ...state, user };
-  });
+    return db.createUser({ name: payload.name, email: payload.email });
+  })
+  .onSuccess((state, user) => ({ ...state, _tag: "Ready", user }))
+  .onError((state, error) => ({ ...state, _tag: "Error", message: error.message }));
 ```
 
 ### Async Actions
@@ -174,8 +175,7 @@ const createUser = createAction("CreateUser")
 import { createAsyncAction } from "tagix";
 import { Database, Logger } from "./services/registry";
 
-const fetchUser = createAsyncAction("FetchUser")
-  .withPayload<{ id: string }>()
+const fetchUser = createAsyncAction<{ id: string }, AppState, User>("FetchUser")
   .state((s) => ({ ...s, _tag: "Loading" }))
   .effect(async (payload, context) => {
     const db = context.getService(Database);
@@ -210,8 +210,8 @@ import { createActionGroup } from "tagix";
 import { Database, Logger } from "./services/registry";
 
 const users = createActionGroup("Users", {
-  fetch: createAsyncAction("Fetch")
-    .withPayload<{ id: string }>()
+  fetch: createAsyncAction<{ id: string }, AppState, User>("Fetch")
+    .state((s) => ({ ...s, _tag: "Loading" }))
     .effect(async (payload, context) => {
       const db = context.getService(Database);
       return db.findUser(payload.id);
@@ -219,21 +219,24 @@ const users = createActionGroup("Users", {
     .onSuccess((state, user) => ({ ...state, user, _tag: "Ready" }))
     .onError((state, error) => ({ ...state, error: error.message, _tag: "Error" })),
 
-  create: createAction("Create")
-    .withPayload<{ name: string; email: string }>()
-    .withHandler(async (state, payload, context) => {
+  // Awaited service calls require `createAsyncAction` (effect), not `withHandler`.
+  create: createAsyncAction<{ name: string; email: string }, AppState, User>("Create")
+    .state((s) => ({ ...s, _tag: "Loading" }))
+    .effect(async (payload, context) => {
       const db = context.getService(Database);
-      const user = await db.createUser(payload);
-      return { ...state, user, _tag: "Ready" };
-    }),
+      return db.createUser(payload);
+    })
+    .onSuccess((state, user) => ({ ...state, user, _tag: "Ready" }))
+    .onError((state, error) => ({ ...state, error: error.message, _tag: "Error" })),
 
-  delete: createAction("Delete")
-    .withPayload<{ id: string }>()
-    .withHandler(async (state, payload, context) => {
+  delete: createAsyncAction<{ id: string }, AppState, void>("Delete")
+    .state((s) => ({ ...s, _tag: "Loading" }))
+    .effect(async (payload, context) => {
       const db = context.getService(Database);
       await db.deleteUser(payload.id);
-      return { ...state, user: null, _tag: "Idle" };
-    }),
+    })
+    .onSuccess((state) => ({ ...state, user: null, _tag: "Idle" }))
+    .onError((state, error) => ({ ...state, error: error.message, _tag: "Error" })),
 });
 ```
 
@@ -242,13 +245,13 @@ const users = createActionGroup("Users", {
 ### Hooks
 
 ```ts
-import { useService, useServiceOptional } from "tagix/hooks";
+import { useService, useServiceOptional } from "tagix";
 import { Database, Logger } from "./services/registry";
 
-function UserProfile({ userId }: { userId: string }) {
-  const db = useService(Database);
-  const logger = useService(Logger);
-  const analytics = useServiceOptional(Analytics); // Optional
+function UserProfile({ context, userId }: { context: TagixContext; userId: string }) {
+  const db = useService(context, Database);
+  const logger = useService(context, Logger);
+  const analytics = useServiceOptional(context, Analytics); // Optional
 
   const handleLoad = async () => {
     logger.info(`Loading profile ${userId}`);
@@ -275,16 +278,16 @@ function Component() {
 Some services might not always be available:
 
 ```ts
-const getUser = createAction("GetUser")
-  .withPayload<{ id: string }>()
-  .withHandler(async (state, payload, context) => {
+const getUser = createAsyncAction<{ id: string }, AppState, User>("GetUser")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async (payload, context) => {
     const cache = context.getServiceOptional(Cache);
 
     // Try cache first
     if (cache) {
       const cached = await cache.get(`user:${payload.id}`);
       if (cached) {
-        return { ...state, user: cached, fromCache: true };
+        return cached;
       }
     }
 
@@ -297,11 +300,13 @@ const getUser = createAction("GetUser")
       await cache.set(`user:${payload.id}`, user, 3600);
     }
 
-    return { ...state, user false };
-  });
+    return user;
+  })
+  .onSuccess((state, user) => ({ ...state, _tag: "Ready", user }))
+  .onError((state, error) => ({ ...state, _tag: "Error", message: error.message }));
 ```
 
-## Service Fact, fromCache:ories with Configuration
+## Service Factories with Configuration
 
 ```ts
 // services/config.ts
@@ -362,7 +367,7 @@ const mockLogger: LoggerService = {
   error: vi.fn(),
 };
 
-const testContext = createContext(createStore(initialState))
+const testContext = createContext(createStore(initialState, AppState))
   .provideService(Database, mockDatabase)
   .provideService(Logger, mockLogger);
 
@@ -379,7 +384,7 @@ describe("UserActions", () => {
   let store: TagixStore;
 
   beforeEach(() => {
-    store = createStore(UserState.Idle());
+    store = createStore(UserState.Idle({}), UserState);
     context = createContext(store)
       .provideService(Database, createDatabase("https://test-api.example.com"))
       .provideService(Logger, createLogger("Test"));
@@ -442,18 +447,18 @@ Gets an optional service. Returns undefined if not provided.
 ### useService
 
 ```ts
-const service = useService(serviceTag);
+const service = useService(context, serviceTag);
 ```
 
-Gets a service in a component. Throws if not provided.
+Gets a service from a context. Throws if not provided. Exported from `"tagix"`.
 
 ### useServiceOptional
 
 ```ts
-const service = useServiceOptional(serviceTag);
+const service = useServiceOptional(context, serviceTag);
 ```
 
-Gets an optional service in a component.
+Gets an optional service from a context. Returns `undefined` if not provided.
 
 ## See Also
 
