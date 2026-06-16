@@ -22,84 +22,101 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
-import { TaggedError } from "../lib/Data/tagged-error";
-import { ERROR_NAMES } from "./error-names";
+import { TaggedError, type TaggedError as TaggedErrorInstance } from "../lib/Data/tagged-error";
+import { ERROR_NAMES, createErrorPayload, type ErrorName } from "./error-names";
+
+type CodedErrorConstructor<Tag extends ErrorName> = new <
+  A extends Record<string, unknown> = Record<string, never>,
+>(
+  args: A
+) => TaggedErrorInstance<Tag> & Readonly<A & { code: number }>;
+
+function TaggedCodedError<Tag extends ErrorName>(tag: Tag): CodedErrorConstructor<Tag> {
+  const Base = TaggedError(tag) as new (
+    args: Record<string, unknown>
+  ) => TaggedErrorInstance<Tag> & Record<string, unknown>;
+  return class extends Base {
+    constructor(args: Record<string, unknown>) {
+      super(createErrorPayload(tag, args));
+    }
+  } as CodedErrorConstructor<Tag>;
+}
 
 /**
  * Thrown when a state transition produces an unexpected state tag in strict mode.
  * @remarks Only thrown when `strict: true` is set in store configuration.
  */
-export const StateTransitionError = TaggedError(ERROR_NAMES.STATE_TRANSITION);
+export const StateTransitionError = TaggedCodedError(ERROR_NAMES.STATE_TRANSITION);
 
 /**
  * Thrown when an action handler is not registered for a dispatched action.
  */
-export const MissingHandlerError = TaggedError(ERROR_NAMES.MISSING_HANDLER);
+export const MissingHandlerError = TaggedCodedError(ERROR_NAMES.MISSING_HANDLER);
 
 /**
  * Thrown when dispatching an action type that has not been registered.
  */
-export const ActionNotFoundError = TaggedError(ERROR_NAMES.ACTION_NOT_FOUND);
+export const ActionNotFoundError = TaggedCodedError(ERROR_NAMES.ACTION_NOT_FOUND);
 
 /**
  * Thrown when an action object is malformed or missing required properties.
  * @remarks Catches issues like invalid effect function, missing state/onSuccess/onError handlers.
  */
-export const InvalidActionError = TaggedError(ERROR_NAMES.INVALID_ACTION);
+export const InvalidActionError = TaggedCodedError(ERROR_NAMES.INVALID_ACTION);
 
 /**
  * Thrown when payload validation fails.
  * @remarks Use `validatePayload` guard to trigger this error.
  */
-export const InvalidPayloadError = TaggedError(ERROR_NAMES.INVALID_PAYLOAD);
+export const InvalidPayloadError = TaggedCodedError(ERROR_NAMES.INVALID_PAYLOAD);
 
 /**
  * Thrown when pattern matching is non-exhaustive.
  * @remarks Use `exhaust` function to ensure all state tags are handled.
  */
-export const NonExhaustiveMatchError = TaggedError(ERROR_NAMES.NON_EXHAUSTIVE_MATCH);
+export const NonExhaustiveMatchError = TaggedCodedError(ERROR_NAMES.NON_EXHAUSTIVE_MATCH);
 
 /**
  * Thrown when a required payload is missing or null/undefined.
  * @remarks Use `fromPayload` guard to trigger this error.
  */
-export const RequiredPayloadError = TaggedError(ERROR_NAMES.REQUIRED_PAYLOAD);
+export const RequiredPayloadError = TaggedCodedError(ERROR_NAMES.REQUIRED_PAYLOAD);
 
 /**
  * Thrown when a payload validation predicate returns false.
  * @remarks Use `validatePayload` guard to trigger this error.
  */
-export const PayloadValidationError = TaggedError(ERROR_NAMES.PAYLOAD_VALIDATION);
+export const PayloadValidationError = TaggedCodedError(ERROR_NAMES.PAYLOAD_VALIDATION);
 
 /**
  * Thrown when state is in an unexpected condition.
  * @remarks Use `ensureState` guard to trigger this error when state tag doesn't match.
  */
-export const UnexpectedStateError = TaggedError(ERROR_NAMES.UNEXPECTED_STATE);
+export const UnexpectedStateError = TaggedCodedError(ERROR_NAMES.UNEXPECTED_STATE);
 
 /**
  * Thrown when attempting to perform operations on a disposed context.
  * @remarks Contexts should be properly disposed and not reused after disposal.
  */
-export const ContextDisposedError = TaggedError(ERROR_NAMES.CONTEXT_DISPOSED);
+export const ContextDisposedError = TaggedCodedError(ERROR_NAMES.CONTEXT_DISPOSED);
 
 /**
  * Test error for consistent error testing.
  * @remarks Used in test files for predictable error handling.
  */
-export const TestError = TaggedError(ERROR_NAMES.TEST);
+export const TestError = TaggedCodedError(ERROR_NAMES.TEST);
 
 /**
  * Thrown when attempting to unwrap a None value.
  * @remarks Use `unwrap` or `unwrapOr` to safely access Option values.
  */
-export const OptionNoneError = TaggedError(ERROR_NAMES.OPTION_NONE);
+export const OptionNoneError = TaggedCodedError(ERROR_NAMES.OPTION_NONE);
 
 /**
  * Thrown when an absurd/unreachable condition is met.
  * @remarks This should never be called and indicates a logical error in exhaustive pattern matching.
  */
-export const AbsurdError = TaggedError(ERROR_NAMES.ABSURD);
+export const AbsurdError = TaggedCodedError(ERROR_NAMES.ABSURD);
 
 export type StateTransitionError = InstanceType<typeof StateTransitionError>;
 export type MissingHandlerError = InstanceType<typeof MissingHandlerError>;

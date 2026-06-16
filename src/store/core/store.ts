@@ -379,7 +379,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     const action = this.actions.get(prefixedType);
 
     if (action === null || action === undefined) {
-      throw new ActionNotFoundError({ type: prefixedType });
+      return this._recordAndThrow(new ActionNotFoundError({ type: prefixedType }));
     }
 
     return this._dispatchAction(action, _payload);
@@ -388,7 +388,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private _dispatchAction(action: AnyAction, _payload: unknown): void | Promise<void> {
     const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
     if (invalidAsyncAction) {
-      throw new InvalidActionError(invalidAsyncAction);
+      return this._recordAndThrow(new InvalidActionError(invalidAsyncAction));
     }
 
     if (isAsyncAction(action)) {
@@ -447,6 +447,21 @@ export class TagixStore<S extends { readonly _tag: string }> {
     };
   }
 
+  private _assertValidState(newState: S, action: string): void {
+    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
+      throw new StateTransitionError({
+        expected: Array.from(this._validStateTags),
+        actual: newState._tag,
+        action,
+      });
+    }
+  }
+
+  private _recordAndThrow(error: unknown): never {
+    this.recordError(error);
+    throw error;
+  }
+
   private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {
     const context = this._dispatchContext;
     const handler =
@@ -466,16 +481,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
         this.recordError(error);
       },
       onRight: (newState: S) => {
-        if (this.config.strict && !this._validStateTags.has(newState._tag)) {
-          throw new StateTransitionError({
-            expected: Array.from(this._validStateTags),
-            actual: newState._tag,
-            action: action.type,
-          });
+        try {
+          this._assertValidState(newState, action.type);
+          this.state = newState;
+          this.notifySubscribers();
+        } catch (error) {
+          this._recordAndThrow(error);
         }
-
-        this.state = newState;
-        this.notifySubscribers();
       },
     });
   }
@@ -484,61 +496,69 @@ export class TagixStore<S extends { readonly _tag: string }> {
     action: AsyncAction<TPayload, S, unknown>,
     payload: TPayload
   ): Promise<void> {
-    const maxRetries = this.config.maxRetries;
-    const context = this._dispatchContext;
-    let attempt = 0;
-    let lastError: unknown;
-    const baselineState = this.state;
-    let pendingState = action.state(baselineState);
+    try {
+      const maxRetries = this.config.maxRetries;
+      const context = this._dispatchContext;
+      let attempt = 0;
+      let lastError: unknown;
+      const baselineState = this.state;
+      let pendingState = action.state(baselineState);
 
-    this.state = pendingState;
-    this.notifySubscribers();
+      this._assertValidState(pendingState, action.type);
+      this.state = pendingState;
+      this.notifySubscribers();
 
-    while (attempt <= maxRetries) {
-      const result = await tryCatchAsync(
-        () => action.effect(payload, context),
-        (err) => err
-      );
+      while (attempt <= maxRetries) {
+        const result = await tryCatchAsync(
+          () => action.effect(payload, context),
+          (err) => err
+        );
 
-      const done = match(result, {
-        onRight: (value) => {
-          const freshState = this.state;
-          const mergedState = this._mergeAsyncState(
-            freshState,
-            pendingState,
-            value,
-            action.onSuccess
-          );
-          this.state = mergedState;
-          this.notifySubscribers();
-          return true;
-        },
-        onLeft: (error) => {
-          lastError = error;
-          attempt++;
-          if (attempt <= maxRetries) {
+        const done = match(result, {
+          onRight: (value) => {
             const freshState = this.state;
-            pendingState = action.onError(freshState, error);
-            this.state = pendingState;
+            const mergedState = this._mergeAsyncState(
+              freshState,
+              pendingState,
+              value,
+              action.onSuccess
+            );
+            this._assertValidState(mergedState, action.type);
+            this.state = mergedState;
             this.notifySubscribers();
-          }
-          return false;
-        },
-      });
+            return true;
+          },
+          onLeft: (error) => {
+            lastError = error;
+            attempt++;
+            if (attempt <= maxRetries) {
+              const freshState = this.state;
+              pendingState = action.onError(freshState, error);
+              this._assertValidState(pendingState, action.type);
+              this.state = pendingState;
+              this.notifySubscribers();
+            }
+            return false;
+          },
+        });
 
-      if (done) {
-        this._clearDispatchContext();
-        return;
+        if (done) {
+          return;
+        }
       }
+
+      const freshState = this.state;
+      const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);
+      this._assertValidState(mergedState, action.type);
+      this.state = mergedState;
+      this.recordError(lastError);
+      this.notifySubscribers();
+    } catch (error) {
+      this.recordError(error);
+      throw error;
+    } finally {
+      this._clearDispatchContext();
     }
-
-    this._clearDispatchContext();
-
-    const freshState = this.state;
-    const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);
-    this.state = mergedState;
-    this.recordError(lastError);
-    this.notifySubscribers();
   }
 
   private _mergeAsyncState(
@@ -676,10 +696,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @remarks Returns the state unchanged if no handler exists for the current tag.
    */
   transitions(transitions: StateTransitions<S>): (state: S, payload?: unknown) => S {
-    return (state) => {
+    return (state, payload) => {
       const tag = state._tag as keyof StateTransitions<S>;
       const fn = transitions[tag];
-      return fn ? fn(state) : state;
+      return fn ? fn(state, payload) : state;
     };
   }
 
@@ -727,12 +747,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * Primarily intended for restoring state from forks or persisted state.
    */
   setState(newState: S, notify: boolean = true): void {
-    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
-      throw new StateTransitionError({
-        expected: Array.from(this._validStateTags),
-        actual: newState._tag,
-        action: "setState",
-      });
+    try {
+      this._assertValidState(newState, "setState");
+    } catch (error) {
+      this._recordAndThrow(error);
     }
     this.state = newState;
     if (notify) {

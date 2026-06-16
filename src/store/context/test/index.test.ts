@@ -23,7 +23,13 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createStore, createAction, createContext, taggedEnum } from "../../index";
+import {
+  createStore,
+  createAction,
+  createContext,
+  createServiceTag,
+  taggedEnum,
+} from "../../index";
 import { isSome, isNone, unwrap } from "../../../lib/Data/option";
 import { getValue } from "../../test/utils";
 import { TestError } from "../../error";
@@ -220,6 +226,33 @@ describe("TagixContext", () => {
 
       expect(getValue(context.getCurrent())).toBe(10);
     });
+
+    it("should clear dispatch context when context dispatch throws", () => {
+      const Secret = createServiceTag<{ value: string }>("ContextLeakSecret");
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      context.provideService(Secret, { value: "leaked" });
+
+      const useSecret = createAction<undefined, CounterStateType>("UseSecret")
+        .withPayload(undefined)
+        .withHandler((_state, _payload, ctx) => {
+          const secret = ctx.getService(Secret);
+          return CounterState.Ready({ value: secret.value.length });
+        });
+
+      store.register("UseSecret", useSecret);
+
+      expect(() => context.dispatch("tagix/action/Missing", undefined)).toThrow();
+
+      store.dispatch(useSecret, undefined);
+
+      expect(store.stateValue._tag).toBe("Idle");
+      expect(getValue(store.stateValue)).toBe(0);
+      expect((store.lastError as Error).message).toBe(
+        "Handler with context must be called via context"
+      );
+    });
   });
 
   describe("fork/clone", () => {
@@ -254,6 +287,21 @@ describe("TagixContext", () => {
 
       expect(clone.getCurrent()).toEqual(context.getCurrent());
       expect(clone).not.toBe(context);
+    });
+
+    it("should preserve provided services when cloning and forking context", () => {
+      const Service = createServiceTag<{ value: string }>("CloneForkService");
+      const implementation = { value: "available" };
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      context.provideService(Service, implementation);
+
+      const clone = context.clone();
+      const fork = context.fork();
+
+      expect(clone.getService(Service)).toBe(implementation);
+      expect(fork.getService(Service)).toBe(implementation);
     });
   });
 
@@ -344,6 +392,17 @@ describe("TagixContext", () => {
       store.dispatch("tagix/action/Increment", { amount: 100 });
 
       expect(value).toBe(0);
+    });
+
+    it("should unsubscribe its internal store subscription on dispose", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      expect((store as unknown as { subscribers: Set<unknown> }).subscribers.size).toBe(1);
+
+      context.dispose();
+
+      expect((store as unknown as { subscribers: Set<unknown> }).subscribers.size).toBe(0);
     });
 
     it("should throw after dispose", () => {
