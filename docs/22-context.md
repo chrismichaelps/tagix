@@ -161,10 +161,11 @@ Create isolated branches of state that share the same underlying store.
 const fork = context.fork();
 fork.dispatch("Increment", { amount: 10 });
 
-console.log(context.getCurrent().value); // 10
+console.log(fork.getCurrent().value); // 10
+console.log(context.getCurrent().value); // 0 — parent is unaffected
 ```
 
-Forks share the same store. Changes made in a fork propagate back to the parent context automatically.
+A fork is an isolated copy backed by its own store. Changes made in a fork do **not** propagate to the parent (and vice versa). Use `merge` to fold a fork's state back into the parent.
 
 ### Clone
 
@@ -284,6 +285,6 @@ const context = createContext(store, {
 
 ## See Also
 
-- [createStore](../core/factory.md) - Store creation
-- [Actions](../actions/index.md) - Synchronous actions
-- [Selectors](../selectors/index.md) - Selector utilities
+- [createStore](04-architecture.md) - Store creation
+- [Actions](11-actions.md) - Synchronous actions
+- [Selectors](20-selectors.md) - Selector utilities

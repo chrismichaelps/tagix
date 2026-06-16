@@ -220,7 +220,7 @@ const createUndoMiddleware = () => {
     if (action.type === "tagix/action/Undo") {
       const previous = history.pop();
       if (previous) {
-        store.replaceState(previous);
+        store.setState(previous);
       }
       return false;
     }

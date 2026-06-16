@@ -56,14 +56,30 @@ type UserStateType = typeof UserState.State;
 
 ## Empty vs Populated Variants
 
-Variants can have properties or be empty:
+Every variant is defined as an **object schema of sample values**. A variant may be empty or carry properties:
 
 ```ts
 const LoadingState = taggedEnum({
-  Idle: {}, // No properties
-  Loading: { progress: 0 }, // With properties
+  Idle: {}, // Empty marker variant — no data
+  Loading: { progress: 0 }, // Carries a number
 });
 ```
+
+An empty variant uses `{}`; this is the marker for "this state holds no data," not a missing default. You still construct it with an argument: `LoadingState.Idle({})`.
+
+To attach a boolean (or any value) to a variant, declare it as a **property**, not as the variant value itself:
+
+```ts
+const AuthState = taggedEnum({
+  Unauthenticated: {}, // marker
+  Authenticating: { loading: true }, // property `loading` inferred as boolean
+});
+
+AuthState.Authenticating({ loading: true }); // ok
+AuthState.Authenticating({ loading: false }); // also ok — `loading` is boolean
+```
+
+A variant value must always be an object schema. You cannot make the variant itself a primitive (`Loading: true` is a type error) — wrap the value in a property instead (`Loading: { value: true }`).
 
 ## Nested Structures
 

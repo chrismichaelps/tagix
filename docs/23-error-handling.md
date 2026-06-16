@@ -17,11 +17,11 @@ Define error states in your taggedEnum state definition:
 const ApiState = taggedEnum({
   Idle: {},
   Loading: {},
-  Success: { data: unknown },
+  Success: { data: null },
   Error: {
-    code: string;
-    message: string;
-    retryable: boolean;
+    code: "",
+    message: "",
+    retryable: false,
   },
 });
 ```
@@ -84,11 +84,11 @@ Implement retry in async action effects:
 ```ts
 const fetchWithRetry = createAsyncAction<{ id: number }, ApiState, Data>("Fetch")
   .state((s) => ({ ...s, _tag: "Loading" }))
-  .effect(async (payload, { signal }) => {
+  .effect(async (payload) => {
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        return await fetch(`/api/${payload.id}`, { signal });
+        return await fetch(`/api/${payload.id}`);
       } catch (error) {
         if (attempt === maxRetries) throw error;
         await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
