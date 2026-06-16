@@ -41,7 +41,7 @@ The store holds your application state and handles action dispatching.
 ```ts
 import { createStore } from "tagix";
 
-const store = createStore(CounterState.Idle({ value: 0 }), {
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
   name: "Counter",
 });
 ```
@@ -88,7 +88,7 @@ store.dispatch(increment, { amount: 5 });
 store.dispatch("tagix/action/Increment", { amount: 3 });
 
 console.log(store.stateValue);
-// { _tag: "Ready", value: 8 }
+// { _tag: "Idle", value: 8 }
 ```
 
 ## Step 7: Subscribe to Changes
@@ -125,14 +125,14 @@ const increment = createAction("Increment")
     value: state.value + payload.amount,
   }));
 
-const store = createStore(CounterState.Idle({ value: 0 }), {
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
   name: "Counter",
 });
 
 store.register("Increment", increment);
 
 store.subscribe((state) => {
-  if (state._tag === "Ready") {
+  if ("value" in state) {
     console.log("Current value:", state.value);
   }
 });

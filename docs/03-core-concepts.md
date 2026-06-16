@@ -17,8 +17,8 @@ Tagix uses tagged unions (discriminated unions) for state representation. Each s
 const UserState = taggedEnum({
   Unauthenticated: {},
   Authenticating: { loading: true },
-  Authenticated: { user: { id: number; name: string } },
-  AuthError: { message: string },
+  Authenticated: { user: { id: 0, name: "" } },
+  AuthError: { message: "" },
 });
 ```
 
@@ -71,7 +71,7 @@ A store is the central state container that:
 ```ts
 const store = createStore(initialState, stateDefinition, {
   name: "MyStore",
-  middleware: [logger],
+  middlewares: [logger],
 });
 ```
 
