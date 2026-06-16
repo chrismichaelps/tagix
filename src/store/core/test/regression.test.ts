@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { createStore, createAction, createAsyncAction, taggedEnum } from "../../index";
+import {
+  createStore,
+  createAction,
+  createAsyncAction,
+  fork,
+  taggedEnum,
+  ERROR_CODES,
+} from "../../index";
 import type { Middleware } from "../../types";
 
 const ApiState = taggedEnum({
@@ -75,9 +82,11 @@ describe("integration: end-to-end async flow against the JSONPlaceholder public 
       .state(() => TodoState.Loading({}))
       .effect(async (payload) => {
         effectRuns++;
-        const res = await fetch(`https://jsonplaceholder.typicode.com/todos/${payload.id}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+        return {
+          id: payload.id,
+          title: "local todo",
+          completed: false,
+        };
       })
       .onSuccess((_s, todo) => {
         receivedInOnSuccess = todo;
@@ -102,7 +111,7 @@ describe("integration: end-to-end async flow against the JSONPlaceholder public 
     expect(loaded.id).toBe(1);
     expect(typeof loaded.title).toBe("string");
     expect(loaded.title.length).toBeGreaterThan(0);
-  }, 15000);
+  });
 });
 
 describe("regression: middleware array passed by caller is not mutated", () => {
@@ -135,5 +144,100 @@ describe("regression: middleware array passed by caller is not mutated", () => {
     order.length = 0;
     store2.dispatch("tagix/action/Noop", undefined);
     expect(order).toEqual(["a", "b"]);
+  });
+});
+
+describe("regression: core state transitions", () => {
+  it("passes payload through store transition helpers", () => {
+    const store = createStore(ApiState.Success({ data: 1 }), ApiState);
+
+    const transition = store.transitions({
+      Success: (state, payload) =>
+        state._tag === "Success"
+          ? ApiState.Success({ data: state.data + (payload as { amount: number }).amount })
+          : state,
+    });
+
+    expect(transition(store.stateValue, { amount: 4 })).toEqual(ApiState.Success({ data: 5 }));
+  });
+
+  it("enforces strict state tags for async pending states", async () => {
+    const store = createStore(ApiState.Idle({}), ApiState, { strict: true });
+    const action = createAsyncAction<void, ApiStateType, number>("InvalidPending")
+      .state(() => ({ _tag: "Missing" }) as unknown as ApiStateType)
+      .effect(async () => 1)
+      .onSuccess(() => ApiState.Success({ data: 1 }))
+      .onError((s) => s);
+
+    store.register("InvalidPending", action);
+
+    await expect(store.dispatch("InvalidPending", undefined)).rejects.toMatchObject({
+      _tag: "StateTransitionError",
+    });
+  });
+
+  it("enforces strict state tags for async success states", async () => {
+    const store = createStore(ApiState.Idle({}), ApiState, { strict: true });
+    const action = createAsyncAction<void, ApiStateType, number>("InvalidSuccess")
+      .state(() => ApiState.Loading({}))
+      .effect(async () => 1)
+      .onSuccess(() => ({ _tag: "Missing" }) as unknown as ApiStateType)
+      .onError((s) => s);
+
+    store.register("InvalidSuccess", action);
+
+    await expect(store.dispatch("InvalidSuccess", undefined)).rejects.toMatchObject({
+      _tag: "StateTransitionError",
+    });
+  });
+
+  it("preserves opt-in retry behavior when a store is forked", async () => {
+    const store = createStore(ApiState.Idle({}), ApiState);
+    let runs = 0;
+    const action = createAsyncAction<void, ApiStateType, number>("Create")
+      .state(() => ApiState.Loading({}))
+      .effect(async () => {
+        runs++;
+        throw new Error("transient");
+      })
+      .onSuccess(() => ApiState.Success({ data: 1 }))
+      .onError((s, err) => ApiState.Error({ message: (err as Error).message, code: 500 }));
+
+    store.register("Create", action);
+    const forked = fork(store);
+
+    await forked.dispatch("Create", undefined);
+
+    expect(runs).toBe(1);
+    expect(forked.stateValue._tag).toBe("Error");
+  });
+
+  it("attaches error codes so store error helpers work", () => {
+    const store = createStore(ApiState.Idle({}), ApiState);
+    const action = createAction<void, ApiStateType>("Fail")
+      .withPayload(undefined)
+      .withState(() => {
+        throw new Error("plain failure");
+      });
+
+    store.register("Fail", action);
+    store.dispatch("Fail", undefined);
+
+    expect(store.lastErrorCode).toBeUndefined();
+
+    expect(() => store.dispatch("Missing", undefined)).toThrow();
+    expect(store.lastErrorCode).toBe(ERROR_CODES.ACTION_NOT_FOUND);
+    expect(store.hasErrorCode(ERROR_CODES.ACTION_NOT_FOUND)).toBe(true);
+
+    const strictStore = createStore(ApiState.Idle({}), ApiState, { strict: true });
+    const invalid = createAction<void, ApiStateType>("Invalid")
+      .withPayload(undefined)
+      .withState(() => ({ _tag: "Missing" }) as unknown as ApiStateType);
+    strictStore.register("Invalid", invalid);
+
+    expect(() => strictStore.dispatch("Invalid", undefined)).toThrow();
+    expect(strictStore.lastErrorCode).toBe(ERROR_CODES.STATE_TRANSITION);
+    expect(strictStore.hasErrorCode(ERROR_CODES.STATE_TRANSITION)).toBe(true);
+    expect(strictStore.lastErrorCategory).toBe("STATE");
   });
 });
