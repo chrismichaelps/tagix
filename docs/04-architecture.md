@@ -21,12 +21,11 @@ class TagixStore<S extends { readonly _tag: string }> {
   // Core operations
   dispatch(type: string, payload?: unknown): Promise<void> | void;
   subscribe(callback: (state: S) => void): () => void;
-  fork(): TagixStore<S>;
 
   // Query operations
   select<K extends keyof S>(key: K): S[K];
   isInState(tag: string): boolean;
-  getState<T extends S["_tag"]>(tag: T): Extract<S, { _tag: T }> | null;
+  getState<T extends S["_tag"]>(tag: T): Option<Extract<S, { _tag: T }>>;
 }
 ```
 
@@ -37,9 +36,9 @@ State is defined using `taggedEnum`, which creates a type with discriminated var
 ```ts
 const AppState = taggedEnum({
   Idle: {},
-  Loading: { progress: number },
-  Ready: { data: unknown },
-  Error: { message: string },
+  Loading: { progress: 0 },
+  Ready: { data: null as unknown },
+  Error: { message: "" },
 });
 
 // Creates:
@@ -77,9 +76,9 @@ store.dispatch("tagix/action/Increment", { amount: 5 });
 ### Action Creator Dispatch
 
 ```ts
-const increment = (amount: number) => createAction("Increment").withPayload({ amount });
+const incrementBy = (payload: { amount: number }) => increment;
 
-store.dispatch(increment, { amount: 5 });
+store.dispatch(incrementBy, { amount: 5 });
 ```
 
 ### Async Dispatch
@@ -88,9 +87,10 @@ store.dispatch(increment, { amount: 5 });
 const fetchData = createAsyncAction("FetchData")
   .state((s) => ({ ...s, _tag: "Loading" }))
   .effect(async () => await fetch("/api/data").then((r) => r.json()))
-  .onSuccess((s, data) => ({ ...s, _tag: "Ready", data }));
+  .onSuccess((s, data) => ({ ...s, _tag: "Ready", data }))
+  .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
 
-await store.dispatch(fetchData);
+await store.dispatch(fetchData, undefined);
 ```
 
 ## Middleware Chain
@@ -113,9 +113,9 @@ const store = createStore(initial, state, {
 Create isolated store copies for testing or isolated branches:
 
 ```ts
-const mainStore = createStore(initialState, state);
-const fork = mainStore.fork();
+const mainStore = createStore(initialState, StateConstructor);
+const forked = fork(mainStore);
 
 // Changes to fork don't affect mainStore
-fork.dispatch("Action", payload);
+forked.dispatch("Action", payload);
 ```

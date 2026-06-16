@@ -225,4 +225,4 @@ store.dispatch(UserActions.logout);
 
 - [Actions](11-actions.md) - Synchronous actions
 - [Async Actions](12-async-actions.md) - Asynchronous operations
-- [createAction](../actions/index.md) - Action creator API
+- [createAction](11-actions.md) - Action creator API

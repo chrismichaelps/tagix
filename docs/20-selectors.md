@@ -14,7 +14,7 @@ Selectors extract and transform data from your state. They help you compute deri
 The store provides methods for selecting data directly from state.
 
 ```ts
-const store = createStore(CounterState.Idle({ value: 0 }));
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
 
 // Get a specific property from state
 const value = store.select("value");
@@ -26,7 +26,7 @@ if (store.isInState("Ready")) {
 
 // Get state wrapped in an Option type
 const readyState = store.getState("Ready");
-if (readyState.isSome) {
+if (isSome(readyState)) {
   // Access readyState.value
 }
 ```
@@ -127,6 +127,7 @@ import { patch } from "tagix";
 const base = { value: 0, name: "test", active: true };
 
 const updated = patch(base)({ value: 5, active: false });
+updated.value;
 // { value: 5, name: "test", active: false }
 ```
 
@@ -137,6 +138,7 @@ const base = { x: 1, y: 2, z: 3 };
 
 const update = patch(base);
 const result = update({ x: 10 })({ y: 20 });
+result.value;
 // { x: 10, y: 20, z: 3 }
 ```
 
@@ -150,9 +152,9 @@ import { getOrDefault } from "tagix";
 const getter = (input: { value?: number }) => input.value;
 
 const withDefault = getOrDefault(0);
-withDefault({ value: 5 }); // 5
-withDefault({ value: undefined }); // 0
-withDefault({}); // 0
+withDefault(getter({ value: 5 })); // 5
+withDefault(getter({ value: undefined })); // 0
+withDefault(getter({})); // 0
 ```
 
 ## Complete Example
@@ -163,23 +165,25 @@ import { createStore, select, pluck, memoize, combineSelectors, patch, taggedEnu
 const UserState = taggedEnum({
   Idle: { user: null },
   Loading: {},
-  Ready: { user: { name: string; email: string; age: number } },
-  Error: { message: string },
+  Ready: { user: { name: "", email: "", age: 0 } },
+  Error: { message: "" },
 });
 
 const store = createStore(
   UserState.Ready({
     user: { name: "Chris", email: "chris@test.com", age: 30 },
-  })
+  }),
+  UserState
 );
 
 // Simple selection
-const userName = select(store.stateValue.user, "name");
+const ready = store.stateValue as Extract<typeof UserState.State, { _tag: "Ready" }>;
+const userName = select(ready.user, "name");
 // "Chris"
 
 // Curried selector
 const getUserName = pluck("user.name");
-const name = getUserName(store.stateValue);
+const name = getUserName(ready);
 // "Chris"
 
 // Memoized expensive computation
@@ -195,7 +199,7 @@ const getUserInfo = combineSelectors(
 );
 
 // Immutable update
-const updateUser = patch(store.stateValue.user)({ age: 31 });
+const updateUser = patch(ready.user)({ age: 31 }).value;
 ```
 
 ## Selector Patterns

@@ -59,7 +59,7 @@ const authMiddleware = () => (next) => (action) => {
   return next(action);
 };
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [authMiddleware],
 });
 ```
@@ -86,7 +86,7 @@ Tagix includes a built-in logger middleware for development.
 ```ts
 import { createLoggerMiddleware } from "tagix";
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [
     createLoggerMiddleware({
       collapsed: true,
@@ -168,7 +168,7 @@ const throttleMiddleware = (ms: number) => {
   };
 };
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [throttleMiddleware(1000)],
 });
 ```
@@ -220,7 +220,7 @@ const createUndoMiddleware = () => {
     if (action.type === "tagix/action/Undo") {
       const previous = history.pop();
       if (previous) {
-        store.replaceState(previous);
+        store.setState(previous);
       }
       return false;
     }
@@ -242,7 +242,7 @@ const createUndoMiddleware = () => {
 Middleware order matters. The first middleware in the array sees the original action, and each subsequent middleware sees the action after previous middlewares have processed it.
 
 ```ts
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [
     // First: Logging sees the original action
     createLoggerMiddleware(),
@@ -269,7 +269,7 @@ Only use the logger middleware during development.
 const logger =
   process.env.NODE_ENV === "development" ? createLoggerMiddleware({ collapsed: true }) : undefined;
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: logger ? [logger] : [],
 });
 ```

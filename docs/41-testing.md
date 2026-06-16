@@ -13,7 +13,7 @@ Test actions in isolation:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { createAction } from "tagix";
+import { createStore, createAction, createAsyncAction, fork, taggedEnum } from "tagix";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -59,17 +59,22 @@ describe("Store", () => {
   it("should notify subscribers", () => {
     const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
 
+    store.register("Increment", increment);
+
     let callCount = 0;
     const unsubscribe = store.subscribe(() => {
       callCount++;
     });
 
-    store.dispatch("tagix/action/Increment", { amount: 1 });
+    // subscribe fires immediately with the current state
     expect(callCount).toBe(1);
+
+    store.dispatch("tagix/action/Increment", { amount: 1 });
+    expect(callCount).toBe(2);
 
     unsubscribe();
     store.dispatch("tagix/action/Increment", { amount: 1 });
-    expect(callCount).toBe(1);
+    expect(callCount).toBe(2);
   });
 });
 ```
@@ -89,7 +94,8 @@ describe("Async Actions", () => {
         await new Promise((r) => setTimeout(r, 10));
         return p.amount;
       })
-      .onSuccess((s, result) => ({ ...s, value: result }));
+      .onSuccess((s, result) => ({ ...s, value: result }))
+      .onError((s) => s);
 
     store.register("AsyncIncrement", asyncIncrement);
 
@@ -127,13 +133,13 @@ describe("Fork Testing", () => {
   it("should not affect main store", () => {
     const mainStore = createStore(CounterState.Idle({ value: 0 }), CounterState);
 
-    const fork = mainStore.fork();
+    const forked = fork(mainStore);
 
     // Modify fork
-    fork.dispatch("tagix/action/Increment", { amount: 100 });
+    forked.dispatch("tagix/action/Increment", { amount: 100 });
 
     // Verify fork changed
-    const forkState = fork.stateValue;
+    const forkState = forked.stateValue;
     expect(forkState.value).toBe(100);
 
     // Verify main store unchanged
