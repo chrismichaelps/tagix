@@ -99,20 +99,25 @@ export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K
  * @returns A function that extracts the value at the path.
  * @remarks Returns undefined if any part of the path is null/undefined.
  */
-export function pluck<T extends object, K extends string>(key: K): (obj: T) => unknown {
+export function pluck<K extends string>(
+  key: K
+): <T extends object>(obj: T) => K extends keyof T ? T[K] : unknown {
+  type Result<T> = K extends keyof T ? T[K] : unknown;
+
   if (!key.includes(".")) {
-    return (obj: T): unknown => (hasProperty(obj, key) ? obj[key] : undefined);
+    return <T extends object>(obj: T): Result<T> =>
+      (hasProperty(obj, key) ? obj[key] : undefined) as Result<T>;
   }
 
   const keys = key.split(".");
 
-  return (obj: T): unknown => {
+  return <T extends object>(obj: T): Result<T> => {
     let current: unknown = obj;
     for (const k of keys) {
-      if (isNullish(current) || !isRecord(current)) return undefined;
+      if (isNullish(current) || !isRecord(current)) return undefined as Result<T>;
       current = current[k];
     }
-    return current;
+    return current as Result<T>;
   };
 }
 
