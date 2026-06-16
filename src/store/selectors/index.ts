@@ -30,6 +30,15 @@ interface Patchable<T> extends Function {
   value: T;
 }
 
+function enumerableKeys(value: object): Array<string | symbol> {
+  return [
+    ...Object.keys(value),
+    ...Object.getOwnPropertySymbols(value).filter((symbol) =>
+      Object.prototype.propertyIsEnumerable.call(value, symbol)
+    ),
+  ];
+}
+
 /**
  * Creates an immutable patching function for objects.
  * @typeParam T - The object type.
@@ -157,6 +166,43 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 
   if (typeof a !== "object" || typeof b !== "object") return false;
 
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+
+  if (a instanceof RegExp || b instanceof RegExp) {
+    return a instanceof RegExp && b instanceof RegExp && String(a) === String(b);
+  }
+
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map)) return false;
+    if (a.size !== b.size) return false;
+    for (const [key, value] of a) {
+      if (!b.has(key) || !deepEqual(value, b.get(key))) return false;
+    }
+    return true;
+  }
+
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set)) return false;
+    if (a.size !== b.size) return false;
+    const unmatched = Array.from(b);
+    for (const valueA of a) {
+      const matchIndex = unmatched.findIndex((valueB) => deepEqual(valueA, valueB));
+      if (matchIndex === -1) return false;
+      unmatched.splice(matchIndex, 1);
+    }
+    return true;
+  }
+
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b)) return false;
+    if (a.constructor !== b.constructor || a.byteLength !== b.byteLength) return false;
+    const bytesA = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    const bytesB = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+    return bytesA.every((byte, index) => byte === bytesB[index]);
+  }
+
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((val, idx) => deepEqual(val, b[idx]));
@@ -164,10 +210,12 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 
   if (Array.isArray(a) !== Array.isArray(b)) return false;
 
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
+  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+
+  const keysA = enumerableKeys(a);
+  const keysB = enumerableKeys(b);
   if (keysA.length !== keysB.length) return false;
-  return keysA.every((key) => deepEqual(a[key as keyof typeof a], b[key as keyof typeof b]));
+  return keysA.every((key) => key in b && deepEqual(a[key as keyof typeof a], b[key as keyof typeof b]));
 }
 
 /**
