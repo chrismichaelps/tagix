@@ -29,8 +29,11 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 export const DEFAULT_CONFIG = {
   name: "TagixStore",
   strict: false,
+  // Async effects run exactly once by default. Auto-retry is opt-in via
+  // `maxRetries` because retrying a non-idempotent effect (POST/create/delete)
+  // can duplicate side effects. When > 0, `onError` runs per failed attempt.
   maxErrorHistory: 50,
-  maxRetries: 3,
+  maxRetries: 0,
   devTools:
     typeof window !== "undefined" && (window as any).__REDUX_DEVTOOLS_EXTENSION__ !== undefined,
 } as const;
