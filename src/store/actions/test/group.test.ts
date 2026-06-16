@@ -532,7 +532,7 @@ describe("real-world scenarios", () => {
     });
 
     it("should handle retry logic with grouped async actions", async () => {
-      const store = createStore(UserState.LoggedOut({}), UserState);
+      const store = createStore(UserState.LoggedOut({}), UserState, { maxRetries: 3 });
       let attemptCount = 0;
 
       const fetchWithRetry = createAsyncAction<

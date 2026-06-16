@@ -380,6 +380,7 @@ describe("createAsyncAction", () => {
   it("should handle async action with retry logic", async () => {
     const store = createStore(CounterState.Pending({ value: 0, retries: 0 }), CounterState, {
       name: "RetryTest",
+      maxRetries: 3,
     });
 
     let attempts = 0;
@@ -681,6 +682,7 @@ describe("createAsyncAction - Retry Logic", () => {
   it("should handle async action with retry logic", async () => {
     const store = createStore(CounterState.Pending({ value: 0, retries: 0 }), CounterState, {
       name: "RetryTest",
+      maxRetries: 3,
     });
 
     let attempts = 0;
@@ -965,7 +967,7 @@ describe("Dispatch API", () => {
   });
 
   it("should dispatch async actions with retry", async () => {
-    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, { maxRetries: 3 });
 
     let attempts = 0;
     const fetchWithRetry = createAsyncAction<void, CounterStateType, string>("FetchWithRetry")
