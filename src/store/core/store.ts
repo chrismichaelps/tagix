@@ -149,7 +149,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
       return true;
     };
 
-    for (const middleware of middlewares.reverse()) {
+    // Copy before reversing — `this.config.middlewares` is the caller's array
+    // reference (spread copies the reference, not the array), and reversing in
+    // place would corrupt the order for any other store sharing that array.
+    for (const middleware of [...middlewares].reverse()) {
       const mw = middleware(context);
       const currentNext = next;
       const bridgedNext = currentNext as unknown as (action: Action | AsyncAction) => boolean;
