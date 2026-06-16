@@ -77,13 +77,14 @@ export function createStore<S extends { readonly _tag: string }>(
 export function fork<S extends { readonly _tag: string }>(store: TagixStore<S>): TagixStore<S> {
   const currentState = store.stateValue;
   const stateConstructor = store.getStateConstructor();
+  const config = store.configValue;
 
   const forkStore = createStore(currentState, stateConstructor, {
     name: `${store.name}-fork`,
-    strict: false,
-    maxErrorHistory: 10,
-    maxRetries: 3,
-    middlewares: undefined,
+    strict: config.strict,
+    maxErrorHistory: config.maxErrorHistory,
+    maxRetries: config.maxRetries,
+    middlewares: config.middlewares,
   });
 
   const actions = store.getActions();
