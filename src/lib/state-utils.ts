@@ -45,14 +45,35 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  *   }));
  * ```
  */
+export function getValue<S extends { readonly _tag: string }, R, D>(
+  state: S,
+  accessor: (state: S) => R,
+  defaultValue: D
+): R | D;
+/**
+ * @deprecated Use a function accessor for full type-safety and autocomplete:
+ * `getValue(state, s => s.value, 0)`. String keys are not checked for nested paths.
+ */
 export function getValue<S extends { readonly _tag: string }, K extends string, D>(
   state: S,
   key: K,
   defaultValue: D
-): K extends keyof S ? S[K] : D {
-  return key in state
-    ? ((state as Record<string, unknown>)[key] as K extends keyof S ? S[K] : D)
-    : (defaultValue as K extends keyof S ? S[K] : D);
+): K extends keyof S ? S[K] : D;
+export function getValue<S extends { readonly _tag: string }, D>(
+  state: S,
+  keyOrAccessor: string | ((state: S) => unknown),
+  defaultValue: D
+): unknown {
+  if (typeof keyOrAccessor === "function") {
+    let value: unknown;
+    try {
+      value = keyOrAccessor(state);
+    } catch {
+      return defaultValue;
+    }
+    return value === undefined ? defaultValue : value;
+  }
+  return keyOrAccessor in state ? (state as Record<string, unknown>)[keyOrAccessor] : defaultValue;
 }
 
 /**
@@ -65,13 +86,30 @@ export function getValue<S extends { readonly _tag: string }, K extends string, 
  * @param key - The property key to access.
  * @returns The property value or undefined.
  */
+export function getProperty<S extends { readonly _tag: string }, R>(
+  state: S,
+  accessor: (state: S) => R
+): R | undefined;
+/**
+ * @deprecated Use a function accessor for full type-safety and autocomplete:
+ * `getProperty(state, s => s.value)`. String keys are not checked for nested paths.
+ */
 export function getProperty<S extends { readonly _tag: string }, K extends string>(
   state: S,
   key: K
-): K extends keyof S ? S[K] : undefined {
-  return key in state
-    ? ((state as Record<string, unknown>)[key] as K extends keyof S ? S[K] : undefined)
-    : (undefined as K extends keyof S ? S[K] : undefined);
+): K extends keyof S ? S[K] : undefined;
+export function getProperty<S extends { readonly _tag: string }>(
+  state: S,
+  keyOrAccessor: string | ((state: S) => unknown)
+): unknown {
+  if (typeof keyOrAccessor === "function") {
+    try {
+      return keyOrAccessor(state);
+    } catch {
+      return undefined;
+    }
+  }
+  return keyOrAccessor in state ? (state as Record<string, unknown>)[keyOrAccessor] : undefined;
 }
 
 /**

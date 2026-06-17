@@ -34,4 +34,29 @@ describe("selector type safety", () => {
     expectTypeOf(n).toEqualTypeOf<number>();
     expect(n).toBe(0);
   });
+
+  it("select with a function accessor is fully typed for nested paths", () => {
+    const state = { user: { name: "Chris", age: 30 }, _tag: "Ready" as const };
+
+    const name = select(state, (s) => s.user.name);
+    expectTypeOf(name).toEqualTypeOf<string | undefined>();
+    expect(name).toBe("Chris");
+
+    const age = select(state, (s) => s.user.age);
+    expectTypeOf(age).toEqualTypeOf<number | undefined>();
+    expect(age).toBe(30);
+  });
+
+  it("pluck<State>() infers the accessor parameter without typeof", () => {
+    interface State {
+      user: { name: string };
+    }
+    const state: State = { user: { name: "Chris" } };
+
+    // `s` is inferred as State from the type argument — no annotation needed.
+    const getName = pluck<State>()((s) => s.user.name);
+    const name = getName(state);
+    expectTypeOf(name).toEqualTypeOf<string | undefined>();
+    expect(name).toBe("Chris");
+  });
 });

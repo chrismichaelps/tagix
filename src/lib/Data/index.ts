@@ -60,6 +60,7 @@ export {
 
 export * from "./functions";
 export * from "./predicate";
+export { type Lens, lens, prop } from "./lens";
 
 export { type TaggedError as TaggedErrorType, TaggedError, isTaggedError } from "./tagged-error";
 
