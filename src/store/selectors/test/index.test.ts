@@ -50,6 +50,55 @@ describe("pluck()", () => {
   });
 });
 
+describe("select() with function accessor", () => {
+  it("should read a value via an accessor function", () => {
+    const obj = { value: 10, name: "test" };
+    expect(select(obj, (s) => s.value)).toBe(10);
+    expect(select(obj, (s) => s.name)).toBe("test");
+  });
+
+  it("should read nested values without dot-path strings", () => {
+    const obj = { user: { profile: { name: "Chris" } } };
+    expect(select(obj, (s) => s.user.profile.name)).toBe("Chris");
+  });
+
+  it("should return undefined when traversal hits a nullish value", () => {
+    const obj = { user: null as { name: string } | null };
+    expect(select(obj, (s) => s.user!.name)).toBeUndefined();
+  });
+});
+
+describe("pluck<T>() curried accessor", () => {
+  interface Obj {
+    user: { name: string; age: number };
+  }
+
+  it("should build a reusable selector, inferring the accessor parameter", () => {
+    const obj: Obj = { user: { name: "Chris", age: 30 } };
+    const getName = pluck<Obj>()((s) => s.user.name);
+    const getAge = pluck<Obj>()((s) => s.user.age);
+
+    expect(getName(obj)).toBe("Chris");
+    expect(getAge(obj)).toBe(30);
+  });
+
+  it("should return undefined when traversal hits a nullish value", () => {
+    interface Nullable {
+      user: { name: string } | null;
+    }
+    const getName = pluck<Nullable>()((s) => s.user!.name);
+    expect(getName({ user: null })).toBeUndefined();
+    expect(getName({ user: { name: "Ada" } })).toBe("Ada");
+  });
+
+  it("should work with tagged enum state", () => {
+    type Ready = ReturnType<typeof CounterState.Ready>;
+    const state = CounterState.Ready({ value: 42 });
+    const getValue = pluck<Ready>()((s) => s.value);
+    expect(getValue(state)).toBe(42);
+  });
+});
+
 describe("memoize()", () => {
   it("should cache results for same input", () => {
     let callCount = 0;

@@ -16,8 +16,8 @@ The store provides methods for selecting data directly from state.
 ```ts
 const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
 
-// Get a specific property from state
-const value = store.select("value");
+// Get a value from state with a type-safe accessor (inferred, autocompleted)
+const value = store.select((s) => s.value);
 
 // Check if the current state matches a tag
 if (store.isInState("Ready")) {
@@ -37,33 +37,39 @@ Tagix provides several selector utilities that work with any state object.
 
 ### select
 
-Extract a single property from an object.
+Extract a value from an object with a **type-safe accessor function**. The accessor parameter is inferred from the object you pass — no annotations, full autocomplete, and nested paths are fully checked. Traversal that hits a nullish value returns `undefined` instead of throwing.
 
 ```ts
 import { select } from "tagix";
 
-const state = { value: 42, name: "test", _tag: "Ready" };
+const state = { value: 42, user: { name: "test" }, _tag: "Ready" };
 
-select(state, "value"); // 42
-select(state, "name"); // "test"
-select(state, "missing"); // undefined
+select(state, (s) => s.value); // 42        (number | undefined)
+select(state, (s) => s.user.name); // "test" (string | undefined) — nested, fully typed
 ```
+
+> **Migration:** the string-key form `select(state, "value")` still works but is `@deprecated`. Prefer the accessor — string keys are not type-checked for nested paths.
 
 ### pluck
 
-Create a curried selector function. This is useful when you want to reuse the same selector across multiple components.
+Create a **reusable, type-safe selector** for a state type. `pluck` is curried by the state type (the same pattern as `lens<T>()`), so once you name the type the accessor parameter and return value are inferred — no `typeof`, no per-parameter annotation.
 
 ```ts
 import { pluck } from "tagix";
 
-const state = { value: 42, _tag: "Ready" };
+interface State {
+  value: number;
+  user: { name: string };
+}
 
-const getValue = pluck("value");
-getValue(state); // 42
+const getValue = pluck<State>()((s) => s.value); // s inferred as State
+getValue(state); // number | undefined
 
-const getTag = pluck("_tag");
-getTag(state); // "Ready"
+const getUserName = pluck<State>()((s) => s.user.name); // nested, fully typed
+getUserName(state); // string | undefined
 ```
+
+> **Migration:** the string-key form `pluck("value")` (and dot-paths like `pluck("user.name")`) still works but is `@deprecated` and returns `unknown` for nested keys.
 
 ### memoize
 
@@ -176,13 +182,13 @@ const store = createStore(
   UserState
 );
 
-// Simple selection
+// Simple selection with a type-safe accessor
 const ready = store.stateValue as Extract<typeof UserState.State, { _tag: "Ready" }>;
-const userName = select(ready.user, "name");
+const userName = select(ready.user, (u) => u.name);
 // "Chris"
 
-// Curried selector
-const getUserName = pluck("user.name");
+// Reusable curried selector — type named once, accessor inferred
+const getUserName = pluck<typeof ready>()((s) => s.user.name);
 const name = getUserName(ready);
 // "Chris"
 
@@ -209,9 +215,18 @@ const updateUser = patch(ready.user)({ age: 31 }).value;
 Build derived values from your state.
 
 ```ts
-const getFullName = (user: { first: string; last: string }) => `${user.first} ${user.last}`;
+interface User {
+  first: string;
+  last: string;
+}
 
-const getUserData = combineSelectors(pluck("firstName"), pluck("lastName"), getFullName);
+const getFullName = (user: User) => `${user.first} ${user.last}`;
+
+const getUserData = combineSelectors(
+  pluck<User>()((u) => u.first),
+  pluck<User>()((u) => u.last),
+  getFullName
+);
 ```
 
 ### Conditional Selection
@@ -220,10 +235,45 @@ Handle optional values gracefully.
 
 ```ts
 const getDisplayName = (user: { displayName?: string; username: string }) => {
-  const display = select(user, "displayName");
+  const display = select(user, (u) => u.displayName);
   return display ?? user.username;
 };
 ```
+
+## Lenses (Optics)
+
+For composable, immutable **get and set** on deeply nested state, Tagix ships a small lens module. A lens is a first-class, type-safe optic — build one with `lens<State>()` and focus deeper with `.at(...)` or `.compose(...)`.
+
+```ts
+import { lens, prop } from "tagix";
+
+interface State {
+  user: { name: string; age: number };
+  count: number;
+}
+
+const nameLens = lens<State>().at("user").at("name");
+
+nameLens.get(state); // string
+nameLens.set(state, "Ada"); // new State, immutable (siblings preserved)
+nameLens.modify(state, (n) => n.toUpperCase()); // new State
+```
+
+Both `set` and `modify` are **dual**: call them data-first (`lens.set(state, value)`) or data-last (`lens.set(value)`) to produce a reusable `State => State` updater that composes with `pipe`/`flow`.
+
+```ts
+import { pipe, lens } from "tagix";
+
+const countLens = lens<State>().at("count");
+
+const next = pipe(
+  state,
+  countLens.modify((n) => n + 1),
+  countLens.set(100)
+);
+```
+
+`prop<State, "count">("count")` is shorthand for `lens<State>().at("count")`. Lenses pair naturally with action handlers for clean, immutable updates without manual spreading.
 
 ### Reactivity with Memoization
 

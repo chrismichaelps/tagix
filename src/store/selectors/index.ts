@@ -80,44 +80,92 @@ export function getState<S extends { readonly _tag: string }, K extends S["_tag"
 }
 
 /**
- * Selects a property from an object.
- * @typeParam T - The object type.
- * @typeParam K - The property key type.
- * @param obj - The object to select from.
- * @param key - The property key.
- * @returns The property value, or undefined if not present.
+ * Runs an accessor against a value, returning `undefined` instead of throwing
+ * when an intermediate property is missing (e.g. reading through `null`).
+ * @internal
  */
-export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K] | undefined {
-  return key in obj ? obj[key] : undefined;
+function safeAccess<T, R>(obj: T, accessor: (state: T) => R): R | undefined {
+  try {
+    return accessor(obj);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * Creates a function that plucks a property (or nested property) from an object.
+ * Selects a value from an object using a type-safe accessor function.
  * @typeParam T - The object type.
- * @typeParam K - The property path type (supports dot notation).
- * @param key - The property key or dot-separated path (e.g., "user.name").
- * @returns A function that extracts the value at the path.
- * @remarks Returns undefined if any part of the path is null/undefined.
+ * @typeParam R - The accessed value type.
+ * @param obj - The object to select from.
+ * @param accessor - Function that reads the desired value from the object.
+ * @returns The accessed value, or `undefined` if traversal hits a nullish value.
+ * @remarks
+ * Prefer this form — it is fully type-checked, supports nested access, and gives
+ * editor autocomplete: `select(state, s => s.user.name)`.
+ * @example
+ * ```ts
+ * const name = select(state, s => s.user.name); // string | undefined
+ * ```
+ */
+export function select<T extends object, R>(obj: T, accessor: (state: T) => R): R | undefined;
+/**
+ * Selects a property from an object by key.
+ * @deprecated Use a function accessor for full type-safety and autocomplete:
+ * `select(obj, s => s.key)`. String keys are not checked for nested paths.
+ */
+export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K] | undefined;
+export function select<T extends object>(
+  obj: T,
+  keyOrAccessor: keyof T | ((state: T) => unknown)
+): unknown {
+  if (typeof keyOrAccessor === "function") {
+    return safeAccess(obj, keyOrAccessor);
+  }
+  return keyOrAccessor in obj ? obj[keyOrAccessor] : undefined;
+}
+
+/**
+ * Creates a reusable, type-safe selector for a state type `T`.
+ *
+ * Curried by the state type so TypeScript infers the accessor parameter and
+ * the result — no `typeof`, no per-parameter annotation. This mirrors the
+ * `lens<T>()` optics API.
+ *
+ * @typeParam T - The state/object type to read from.
+ * @returns A function that takes an accessor and yields a reusable selector.
+ * @remarks Returns `undefined` if traversal hits a nullish value.
+ * @example
+ * ```ts
+ * const userName = pluck<State>()(s => s.user.name);
+ * userName(state); // string | undefined — `s` is inferred as State
+ * ```
+ */
+export function pluck<T>(): <R>(accessor: (state: T) => R) => (state: T) => R | undefined;
+/**
+ * Creates a function that plucks a property (or nested dot-path) from an object.
+ * @deprecated Use the curried accessor form for full type-safety and autocomplete:
+ * `pluck<State>()(s => s.user.name)`. Dot-path strings return `unknown` for nested keys.
  */
 export function pluck<K extends string>(
   key: K
-): <T extends object>(obj: T) => K extends keyof T ? T[K] : unknown {
-  type Result<T> = K extends keyof T ? T[K] : unknown;
+): <T extends object>(obj: T) => K extends keyof T ? T[K] : unknown;
+export function pluck(key?: string): unknown {
+  if (key === undefined) {
+    return (accessor: (state: unknown) => unknown) => (obj: unknown) => safeAccess(obj, accessor);
+  }
 
   if (!key.includes(".")) {
-    return <T extends object>(obj: T): Result<T> =>
-      (hasProperty(obj, key) ? obj[key] : undefined) as Result<T>;
+    return (obj: object) => (hasProperty(obj, key) ? obj[key] : undefined);
   }
 
   const keys = key.split(".");
-
-  return <T extends object>(obj: T): Result<T> => {
+  return (obj: object) => {
     let current: unknown = obj;
     for (const k of keys) {
-      if (isNullish(current) || !isRecord(current)) return undefined as Result<T>;
+      if (isNullish(current) || !isRecord(current)) return undefined;
       current = current[k];
     }
-    return current as Result<T>;
+    return current;
   };
 }
 
@@ -220,7 +268,9 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   const keysA = enumerableKeys(a);
   const keysB = enumerableKeys(b);
   if (keysA.length !== keysB.length) return false;
-  return keysA.every((key) => key in b && deepEqual(a[key as keyof typeof a], b[key as keyof typeof b]));
+  return keysA.every(
+    (key) => key in b && deepEqual(a[key as keyof typeof a], b[key as keyof typeof b])
+  );
 }
 
 /**

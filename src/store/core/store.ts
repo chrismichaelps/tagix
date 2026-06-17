@@ -548,7 +548,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
       }
 
       const freshState = this.state;
-      const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);
+      const mergedState = this._mergeAsyncState(
+        freshState,
+        pendingState,
+        lastError,
+        action.onError
+      );
       this._assertValidState(mergedState, action.type);
       this.state = mergedState;
       this.recordError(lastError);
@@ -723,20 +728,38 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
-   * Selects a property from the current state.
-   * @typeParam K - The property key type.
-   * @param key - The property key to access.
-   * @returns The property value, or undefined if not present.
+   * Selects a value from the current state using a type-safe accessor function.
+   * @typeParam R - The accessed value type.
+   * @param accessor - Function that reads the desired value from the state.
+   * @returns The accessed value, or `undefined` if traversal hits a nullish value.
    *
    * @remarks
-   * For properties that exist on all variants, the return type is correctly inferred.
-   * For properties that may not exist on all variants, returns `unknown | undefined`.
+   * Prefer this form — it is fully type-checked, supports nested access, and gives
+   * editor autocomplete: `store.select(s => s.user.name)`.
+   * @example
+   * ```ts
+   * const count = store.select(s => s.count); // number | undefined
+   * ```
    */
-  select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined {
-    if (hasProperty(this.state, key)) {
-      return this.state[key] as K extends keyof S ? S[K] : unknown | undefined;
+  select<R>(accessor: (state: S) => R): R | undefined;
+  /**
+   * Selects a property from the current state by key.
+   * @deprecated Use a function accessor for full type-safety and autocomplete:
+   * `store.select(s => s.key)`. String keys are not checked for nested paths.
+   */
+  select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined;
+  select(keyOrAccessor: string | ((state: S) => unknown)): unknown {
+    if (typeof keyOrAccessor === "function") {
+      try {
+        return keyOrAccessor(this.state);
+      } catch {
+        return undefined;
+      }
     }
-    return undefined as K extends keyof S ? S[K] : unknown | undefined;
+    if (hasProperty(this.state, keyOrAccessor)) {
+      return this.state[keyOrAccessor];
+    }
+    return undefined;
   }
 
   /**
