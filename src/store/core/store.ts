@@ -25,7 +25,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
 import { some, none, type Option } from "../../lib/Data/option";
 import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
-import { isRecord, isFunction, hasProperty } from "../../lib/Data/predicate";
+import { isFunction, hasProperty } from "../../lib/Data/predicate";
 import {
   StoreConfig,
   Action,
@@ -51,33 +51,6 @@ type StateTransitions<S extends { readonly _tag: string }> = Partial<
 
 /** Union type for storing heterogeneous actions in a Map */
 type AnyAction = Action<any, any> | AsyncAction<any, any, any>;
-
-function deepMerge(
-  target: Record<string, unknown>,
-  source: Record<string, unknown>
-): Record<string, unknown> {
-  if (source === null || source === undefined) {
-    return target;
-  }
-  if (target === null || target === undefined) {
-    return source;
-  }
-
-  const result: Record<string, unknown> = { ...target };
-
-  for (const key of Object.keys(source)) {
-    const sourceValue = source[key];
-    const targetValue = target[key];
-
-    if (isRecord(sourceValue)) {
-      result[key] = isRecord(targetValue) ? deepMerge(targetValue, sourceValue) : sourceValue;
-    } else {
-      result[key] = sourceValue;
-    }
-  }
-
-  return result;
-}
 
 /**
  * Core store implementation for Tagix state management.
@@ -517,12 +490,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
         const done = match(result, {
           onRight: (value) => {
             const freshState = this.state;
-            const mergedState = this._mergeAsyncState(
-              freshState,
-              pendingState,
-              value,
-              action.onSuccess
-            );
+            const mergedState = this._mergeAsyncState(freshState, value, action.onSuccess);
             this._assertValidState(mergedState, action.type);
             this.state = mergedState;
             this.notifySubscribers();
@@ -548,12 +516,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
       }
 
       const freshState = this.state;
-      const mergedState = this._mergeAsyncState(
-        freshState,
-        pendingState,
-        lastError,
-        action.onError
-      );
+      const mergedState = this._mergeAsyncState(freshState, lastError, action.onError);
       this._assertValidState(mergedState, action.type);
       this.state = mergedState;
       this.recordError(lastError);
@@ -568,7 +531,6 @@ export class TagixStore<S extends { readonly _tag: string }> {
 
   private _mergeAsyncState(
     freshState: S,
-    pendingState: S,
     handlerInput: unknown,
     handler: (state: S, input: unknown) => S
   ): S {
