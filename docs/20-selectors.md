@@ -275,6 +275,35 @@ const next = pipe(
 
 `prop<State, "count">("count")` is shorthand for `lens<State>().at("count")`. Lenses pair naturally with action handlers for clean, immutable updates without manual spreading.
 
+## Ordering and Sorting
+
+For comparing and sorting derived values, Tagix ships a composable `Order` module (exported as a namespace). Build primitive orders, derive new ones from a field, and chain tie-breakers.
+
+```ts
+import { Order, pipe } from "tagix";
+
+interface User {
+  name: string;
+  age: number;
+}
+
+const byAge = Order.mapInput(Order.number, (u: User) => u.age);
+const byName = Order.mapInput(Order.string, (u: User) => u.name);
+
+// Sort by age, then by name on ties — returns a new array (input untouched).
+const ordered = pipe(users, Order.sort(Order.combine(byAge, byName)));
+```
+
+Primitive orders (`Order.number`, `Order.string`, `Order.boolean`, `Order.bigint`, `Order.date`) and combinators (`reverse`, `mapInput`, `combine`, `combineAll`, `array`) compose freely. Comparison helpers — `lessThan`, `greaterThan` (and inclusive variants), `min`, `max`, `clamp`, `between`, `sort` — each take an `Order` and return a ready-to-use function.
+
+```ts
+const clampScore = Order.clamp(Order.number);
+clampScore(120, { minimum: 0, maximum: 100 }); // 100
+
+const newest = Order.max(Order.date);
+newest(a.createdAt, b.createdAt); // the later Date
+```
+
 ### Reactivity with Memoization
 
 Prevent unnecessary recalculations when state changes.

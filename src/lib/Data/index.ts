@@ -61,6 +61,8 @@ export {
 export * from "./functions";
 export * from "./predicate";
 export { type Lens, lens, prop } from "./lens";
+export * as Order from "./order";
+export { type Ordering } from "./order";
 
 export { type TaggedError as TaggedErrorType, TaggedError, isTaggedError } from "./tagged-error";
 
