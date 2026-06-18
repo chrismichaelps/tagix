@@ -19,6 +19,16 @@ describe("primitive orders", () => {
     expect(Order.number(3, 2)).toBe(1);
   });
 
+  it("number keeps a total order around NaN (NaN sorts last)", () => {
+    expect(Order.number(NaN, 1)).toBe(1);
+    expect(Order.number(1, NaN)).toBe(-1);
+    expect(Order.number(NaN, NaN)).toBe(0);
+    // sort() must place NaN at the end and not corrupt the rest
+    const sorted = Order.sort(Order.number)([3, NaN, 1, 2]);
+    expect(sorted.slice(0, 3)).toEqual([1, 2, 3]);
+    expect(Number.isNaN(sorted[3])).toBe(true);
+  });
+
   it("string sorts lexicographically", () => {
     expect(Order.string("a", "b")).toBe(-1);
     expect(Order.string("b", "b")).toBe(0);

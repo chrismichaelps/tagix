@@ -213,6 +213,10 @@ export function combineSelectors<T extends object, R1, R2, R3>(
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {
+  return deepEqualInner(a, b, new WeakMap<object, object>());
+}
+
+function deepEqualInner(a: unknown, b: unknown, seen: WeakMap<object, object>): boolean {
   if (Object.is(a, b)) return true;
   if (a === null || b === null) return false;
   if (typeof a !== typeof b) return false;
@@ -227,11 +231,16 @@ export function deepEqual(a: unknown, b: unknown): boolean {
     return a instanceof RegExp && b instanceof RegExp && String(a) === String(b);
   }
 
+  // Cycle guard: record this pair before recursing so self-referential
+  // structures resolve to equal instead of overflowing the stack.
+  if (seen.get(a) === b) return true;
+  seen.set(a, b);
+
   if (a instanceof Map || b instanceof Map) {
     if (!(a instanceof Map) || !(b instanceof Map)) return false;
     if (a.size !== b.size) return false;
     for (const [key, value] of a) {
-      if (!b.has(key) || !deepEqual(value, b.get(key))) return false;
+      if (!b.has(key) || !deepEqualInner(value, b.get(key), seen)) return false;
     }
     return true;
   }
@@ -241,7 +250,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
     if (a.size !== b.size) return false;
     const unmatched = Array.from(b);
     for (const valueA of a) {
-      const matchIndex = unmatched.findIndex((valueB) => deepEqual(valueA, valueB));
+      const matchIndex = unmatched.findIndex((valueB) => deepEqualInner(valueA, valueB, seen));
       if (matchIndex === -1) return false;
       unmatched.splice(matchIndex, 1);
     }
@@ -258,7 +267,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
-    return a.every((val, idx) => deepEqual(val, b[idx]));
+    return a.every((val, idx) => deepEqualInner(val, b[idx], seen));
   }
 
   if (Array.isArray(a) !== Array.isArray(b)) return false;
@@ -269,7 +278,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   const keysB = enumerableKeys(b);
   if (keysA.length !== keysB.length) return false;
   return keysA.every(
-    (key) => key in b && deepEqual(a[key as keyof typeof a], b[key as keyof typeof b])
+    (key) => key in b && deepEqualInner(a[key as keyof typeof a], b[key as keyof typeof b], seen)
   );
 }
 
