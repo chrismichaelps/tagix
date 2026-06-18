@@ -441,6 +441,42 @@ describe("TagixContext", () => {
       expect(isSome(derived)).toBe(true);
       expect(unwrap(derived).doubled).toBe(20);
     });
+
+    it("should not fire a derived-context select when the selected value is unchanged", () => {
+      const store = createStore(CounterState.Ready({ value: 100 }), CounterState);
+      const context = createContext(store);
+      const subContext = context.provide("flag", { active: true });
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // Selected value (value > 0) stays `true` across these increments.
+      const unsubscribe = subContext.select(
+        (state) => getValue(state) > 0,
+        () => {
+          calls++;
+        }
+      );
+
+      // Measure additional fires from a baseline (the initial settle may invoke
+      // the callback more than once as the selector sees the derived value then
+      // the parent state).
+      const baseline = calls;
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      // No extra fires — the selected boolean is unchanged across both dispatches.
+      expect(calls).toBe(baseline);
+
+      unsubscribe();
+    });
   });
 
   describe("use hook pattern", () => {

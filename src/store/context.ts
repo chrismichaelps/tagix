@@ -660,8 +660,14 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       });
     }
 
+    let lastSelected: U | undefined;
+
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
+      if (lastSelected !== undefined && deepEqual(selected, lastSelected)) {
+        return;
+      }
+      lastSelected = selected;
       callback(selected);
     };
 

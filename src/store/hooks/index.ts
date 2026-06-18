@@ -210,11 +210,13 @@ export function useSelector<S extends { readonly _tag: string }, T>(
   context: TagixContext<S>,
   selector: (state: S) => T
 ): T {
-  let value: T;
+  // `context.select` invokes the callback synchronously with the current value
+  // before returning, so `value` is always assigned here. This is a one-shot
+  // read: subscribe, capture, immediately unsubscribe.
+  let value!: T;
   const unsubscribe = context.select(selector, (newValue) => {
     value = newValue;
   });
-  value = selector(context.getCurrent());
   unsubscribe();
   return value;
 }
