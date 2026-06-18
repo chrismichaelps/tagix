@@ -67,6 +67,7 @@ export * from "./predicate";
 export { type Lens, lens, prop } from "./lens";
 export * as Order from "./order";
 export { type Ordering } from "./order";
+export * as Brand from "./brand";
 
 export { type TaggedError as TaggedErrorType, TaggedError, isTaggedError } from "./tagged-error";
 

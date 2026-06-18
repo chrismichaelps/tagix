@@ -195,6 +195,49 @@ const passesAll = all([isEven, isPositive]);
 
 These compose directly with `filter` and `fromPredicateOption`/`fromPredicateEither`. (For type narrowing, use the individual `is*` guards above, which are type predicates.)
 
+## Brand (nominal types)
+
+`Brand<T, Name>` gives a structurally-identical type a distinct nominal identity, so values like ids and units can't be mixed up at compile time even though they are the same type at runtime. Brands are exported as the `Brand` namespace.
+
+```ts
+import { Brand } from "tagix";
+
+type UserId = Brand.Brand<string, "UserId">;
+type OrderId = Brand.Brand<string, "OrderId">;
+
+const UserId = Brand.nominal<string, "UserId">();
+const id = UserId("u_123"); // UserId — still a string at runtime
+
+const s: string = id; // ok — a UserId is assignable to its base
+declare const order: OrderId;
+// const bad: OrderId = id; // type error — UserId and OrderId are distinct
+```
+
+Validate at construction with `Brand.refined`, which returns an `Either`:
+
+```ts
+type Email = Brand.Brand<string, "Email">;
+
+const Email = Brand.refined<string, "Email", string>(
+  (s) => s.includes("@"),
+  (s) => `invalid email: ${s}`
+);
+
+Email("a@b.com"); // Right(Email)
+Email("nope"); // Left("invalid email: nope")
+```
+
+Use `Brand.is` to build a type-guard that narrows a base value to the brand:
+
+```ts
+const isInt = Brand.is<number, "Int">(Number.isInteger);
+if (isInt(n)) {
+  // n is Brand<number, "Int"> here
+}
+```
+
+Brands compose: `Brand.Brand<number, "Int"> & Brand.Brand<number, "Positive">` is assignable to either brand.
+
 ## See Also
 
 - [Selectors](20-selectors.md) — `Order` comparators and `Lens` optics
