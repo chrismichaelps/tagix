@@ -56,8 +56,17 @@ export interface Order<A> {
 
 const sign = (n: number): Ordering => (n < 0 ? -1 : n > 0 ? 1 : 0);
 
-/** Order for numbers, ascending. */
-export const number: Order<number> = (self, that) => sign(self - that);
+/**
+ * Order for numbers, ascending.
+ * @remarks `NaN` is treated as the greatest value and sorts last, keeping the
+ * comparator a total order (plain `self - that` would report `NaN` as equal to
+ * everything and corrupt sorting).
+ */
+export const number: Order<number> = (self, that) => {
+  if (Number.isNaN(self)) return Number.isNaN(that) ? 0 : 1;
+  if (Number.isNaN(that)) return -1;
+  return sign(self - that);
+};
 
 /** Order for strings, by lexicographic comparison. */
 export const string: Order<string> = (self, that) => (self < that ? -1 : self > that ? 1 : 0);

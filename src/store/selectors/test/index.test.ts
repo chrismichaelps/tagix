@@ -9,6 +9,7 @@ import {
   taggedEnum,
   createStore,
 } from "../../index";
+import { deepEqual } from "../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -280,5 +281,47 @@ describe("Complete Selector Example", () => {
 
     expect(getDisplayName({ displayName: "JD", username: "john" })).toBe("JD");
     expect(getDisplayName({ username: "john" })).toBe("john");
+  });
+});
+
+describe("deepEqual() with cyclic references", () => {
+  it("does not overflow the stack on self-referential objects", () => {
+    const a: Record<string, unknown> = { value: 1 };
+    a.self = a;
+    const b: Record<string, unknown> = { value: 1 };
+    b.self = b;
+
+    expect(deepEqual(a, b)).toBe(true);
+  });
+
+  it("detects differences in cyclic structures", () => {
+    const a: Record<string, unknown> = { value: 1 };
+    a.self = a;
+    const b: Record<string, unknown> = { value: 2 };
+    b.self = b;
+
+    expect(deepEqual(a, b)).toBe(false);
+  });
+
+  it("handles mutually-referential objects without overflow", () => {
+    const a1: Record<string, unknown> = { id: "a" };
+    const a2: Record<string, unknown> = { id: "b" };
+    a1.ref = a2;
+    a2.ref = a1;
+
+    const b1: Record<string, unknown> = { id: "a" };
+    const b2: Record<string, unknown> = { id: "b" };
+    b1.ref = b2;
+    b2.ref = b1;
+
+    expect(deepEqual(a1, b1)).toBe(true);
+  });
+
+  it("memoize survives a cyclic input", () => {
+    const input: Record<string, unknown> = { value: 5 };
+    input.self = input;
+    const selector = memoize((i: { value: number }) => i.value * 2);
+    expect(selector(input as unknown as { value: number })).toBe(10);
+    expect(selector(input as unknown as { value: number })).toBe(10);
   });
 });
