@@ -244,7 +244,7 @@ const users = createActionGroup("Users", {
 
 ### Hooks
 
-```ts
+```tsx
 import { useService, useServiceOptional } from "tagix";
 import { Database, Logger } from "./services/registry";
 
