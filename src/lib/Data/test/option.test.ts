@@ -10,6 +10,8 @@ import {
   tap,
   getOrElse,
   orElse,
+  fromPredicate,
+  all,
 } from "../option";
 import { pipe } from "../functions";
 
@@ -128,6 +130,55 @@ describe("Option dual (data-first + data-last) combinators", () => {
           )
         )
       ).toBe(true);
+    });
+  });
+
+  describe("fromPredicate", () => {
+    it("data-first builds Some/None from a predicate", () => {
+      expect(fromPredicate(4, (n) => n > 0)).toEqual(some(4));
+      expect(isNone(fromPredicate(-1, (n) => n > 0))).toBe(true);
+    });
+
+    it("data-last composes with pipe", () => {
+      expect(
+        pipe(
+          4,
+          fromPredicate((n: number) => n > 0)
+        )
+      ).toEqual(some(4));
+      expect(
+        isNone(
+          pipe(
+            -1,
+            fromPredicate((n: number) => n > 0)
+          )
+        )
+      ).toBe(true);
+    });
+
+    it("narrows with a type-guard refinement", () => {
+      const isStr = (u: unknown): u is string => typeof u === "string";
+      const opt = fromPredicate("hi" as unknown, isStr);
+      if (isSome(opt)) {
+        const s: string = opt.value; // compiles only if narrowed to string
+        expect(s).toBe("hi");
+      } else {
+        throw new Error("expected Some");
+      }
+    });
+  });
+
+  describe("all", () => {
+    it("returns Some of all values when every element is Some", () => {
+      expect(all([some(1), some(2), some(3)])).toEqual(some([1, 2, 3]));
+    });
+
+    it("returns None when any element is None", () => {
+      expect(isNone(all([some(1), none<number>(), some(3)]))).toBe(true);
+    });
+
+    it("returns Some([]) for an empty iterable", () => {
+      expect(all<number>([])).toEqual(some([]));
     });
   });
 });
