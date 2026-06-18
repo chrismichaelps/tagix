@@ -216,12 +216,22 @@ export function getTag<S extends { readonly _tag: string }>(state: S): S["_tag"]
 }
 
 /**
- * Checks if a state value has a specific tag.
+ * Checks if a state value has a specific tag, narrowing the type when true.
  * @typeParam S - The state type.
+ * @typeParam K - The tag to check for.
  * @param state - The state value.
  * @param tag - The tag to check for.
- * @returns True if state tag matches.
+ * @returns A type predicate narrowing `state` to the matching variant when true.
+ * @example
+ * ```ts
+ * if (hasTag(state, "Ready")) {
+ *   state.value; // narrowed to the Ready variant
+ * }
+ * ```
  */
-export function hasTag<S extends { readonly _tag: string }>(state: S, tag: S["_tag"]): boolean {
+export function hasTag<S extends { readonly _tag: string }, K extends S["_tag"]>(
+  state: S,
+  tag: K
+): state is Extract<S, { _tag: K }> {
   return state._tag === tag;
 }

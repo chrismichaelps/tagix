@@ -43,32 +43,100 @@ export const getOrNull = <A>(option: Option<A>): A | null => (isNone(option) ? n
 export const getOrUndefined = <A>(option: Option<A>): A | undefined =>
   isNone(option) ? undefined : option.value;
 
-export const getOrElse = <A, B>(option: Option<A>, orElse: () => B): A | B =>
-  isNone(option) ? orElse() : option.value;
+export function getOrElse<A, B>(orElse: () => B): (option: Option<A>) => A | B;
+export function getOrElse<A, B>(option: Option<A>, orElse: () => B): A | B;
+export function getOrElse<A, B>(
+  optionOrOrElse: Option<A> | (() => B),
+  orElse?: () => B
+): (A | B) | ((option: Option<A>) => A | B) {
+  if (orElse === undefined) {
+    const fn = optionOrOrElse as () => B;
+    return (option: Option<A>) => (isNone(option) ? fn() : option.value);
+  }
+  const option = optionOrOrElse as Option<A>;
+  return isNone(option) ? orElse() : option.value;
+}
 
-export const orElse = <A, B>(option: Option<A>, that: () => Option<B>): Option<A | B> =>
-  isNone(option) ? that() : option;
+export function orElse<A, B>(that: () => Option<B>): (option: Option<A>) => Option<A | B>;
+export function orElse<A, B>(option: Option<A>, that: () => Option<B>): Option<A | B>;
+export function orElse<A, B>(
+  optionOrThat: Option<A> | (() => Option<B>),
+  that?: () => Option<B>
+): Option<A | B> | ((option: Option<A>) => Option<A | B>) {
+  if (that === undefined) {
+    const fn = optionOrThat as () => Option<B>;
+    return (option: Option<A>) => (isNone(option) ? fn() : option);
+  }
+  const option = optionOrThat as Option<A>;
+  return isNone(option) ? that() : option;
+}
 
 export const match = <A, B, C>(
   option: Option<A>,
   cases: { readonly onNone: () => B; readonly onSome: (a: A) => C }
 ): B | C => (isNone(option) ? cases.onNone() : cases.onSome(option.value));
 
-export const map = <A, B>(option: Option<A>, f: (a: A) => B): Option<B> =>
-  isNone(option) ? none() : some(f(option.value));
-
-export const flatMap = <A, B>(option: Option<A>, f: (a: A) => Option<B>): Option<B> =>
-  isNone(option) ? none() : f(option.value);
-
-export const filter = <A>(option: Option<A>, predicate: (a: A) => boolean): Option<A> =>
-  isNone(option) ? none() : predicate(option.value) ? option : none();
-
-export const tap = <A>(option: Option<A>, f: (a: A) => void): Option<A> => {
-  if (isSome(option)) {
-    f(option.value);
+export function map<A, B>(f: (a: A) => B): (option: Option<A>) => Option<B>;
+export function map<A, B>(option: Option<A>, f: (a: A) => B): Option<B>;
+export function map<A, B>(
+  optionOrF: Option<A> | ((a: A) => B),
+  f?: (a: A) => B
+): Option<B> | ((option: Option<A>) => Option<B>) {
+  if (f === undefined) {
+    const fn = optionOrF as (a: A) => B;
+    return (option: Option<A>) => (isNone(option) ? none<B>() : some(fn(option.value)));
   }
-  return option;
-};
+  const option = optionOrF as Option<A>;
+  return isNone(option) ? none<B>() : some(f(option.value));
+}
+
+export function flatMap<A, B>(f: (a: A) => Option<B>): (option: Option<A>) => Option<B>;
+export function flatMap<A, B>(option: Option<A>, f: (a: A) => Option<B>): Option<B>;
+export function flatMap<A, B>(
+  optionOrF: Option<A> | ((a: A) => Option<B>),
+  f?: (a: A) => Option<B>
+): Option<B> | ((option: Option<A>) => Option<B>) {
+  if (f === undefined) {
+    const fn = optionOrF as (a: A) => Option<B>;
+    return (option: Option<A>) => (isNone(option) ? none<B>() : fn(option.value));
+  }
+  const option = optionOrF as Option<A>;
+  return isNone(option) ? none<B>() : f(option.value);
+}
+
+export function filter<A>(predicate: (a: A) => boolean): (option: Option<A>) => Option<A>;
+export function filter<A>(option: Option<A>, predicate: (a: A) => boolean): Option<A>;
+export function filter<A>(
+  optionOrPredicate: Option<A> | ((a: A) => boolean),
+  predicate?: (a: A) => boolean
+): Option<A> | ((option: Option<A>) => Option<A>) {
+  if (predicate === undefined) {
+    const pred = optionOrPredicate as (a: A) => boolean;
+    return (option: Option<A>) =>
+      isNone(option) ? none<A>() : pred(option.value) ? option : none<A>();
+  }
+  const option = optionOrPredicate as Option<A>;
+  return isNone(option) ? none<A>() : predicate(option.value) ? option : none<A>();
+}
+
+export function tap<A>(f: (a: A) => void): (option: Option<A>) => Option<A>;
+export function tap<A>(option: Option<A>, f: (a: A) => void): Option<A>;
+export function tap<A>(
+  optionOrF: Option<A> | ((a: A) => void),
+  f?: (a: A) => void
+): Option<A> | ((option: Option<A>) => Option<A>) {
+  const run = (option: Option<A>, fn: (a: A) => void): Option<A> => {
+    if (isSome(option)) {
+      fn(option.value);
+    }
+    return option;
+  };
+  if (f === undefined) {
+    const fn = optionOrF as (a: A) => void;
+    return (option: Option<A>) => run(option, fn);
+  }
+  return run(optionOrF as Option<A>, f);
+}
 
 export const unwrap = <A>(option: Option<A>): A => {
   if (isNone(option)) {
