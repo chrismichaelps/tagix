@@ -1440,3 +1440,68 @@ describe("RelaxedState type safety (typos must fail to compile)", () => {
     expect(true).toBe(true);
   });
 });
+
+describe("createAsyncAction — withPayload (DX gap #60)", () => {
+  it("stores the default payload provided via withPayload", () => {
+    const action = createAsyncAction<{ id: number }, CounterStateType, string>("Fetch")
+      .withPayload({ id: 0 })
+      .state(() => CounterState.Loading({}))
+      .effect(async (p) => String(p.id))
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: Number(result) }))
+      .onError((s) => s);
+
+    expect(action.payload).toEqual({ id: 0 });
+  });
+
+  it("dispatches with the explicit payload, not the default", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetch = createAsyncAction<{ id: number }, CounterStateType, number>("FetchById")
+      .withPayload({ id: 0 })
+      .state(() => CounterState.Loading({}))
+      .effect(async (p) => p.id * 10)
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: result } as any))
+      .onError((s) => s);
+
+    store.register("FetchById", fetch);
+
+    await store.dispatch("tagix/action/FetchById", { id: 7 });
+
+    expect((store.stateValue as any).value).toBe(70);
+  });
+
+  it("payload is undefined when withPayload is omitted (no payload! lie)", () => {
+    const action = createAsyncAction<void, CounterStateType, void>("NoPayload")
+      .state(() => CounterState.Loading({}))
+      .effect(async () => undefined)
+      .onSuccess((s) => ({ ...s, _tag: "Ready", value: 1 } as any))
+      .onError((s) => s);
+
+    expect(action.payload).toBeUndefined();
+  });
+});
+
+describe("createAction — withPayload default is honored (DX gap #60)", () => {
+  it("stores the default payload, and dispatch uses the explicit payload", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const add = createAction<{ amount: number }, CounterStateType>("Add")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    store.register("Add", add);
+
+    expect(add.payload).toEqual({ amount: 1 });
+
+    store.dispatch("tagix/action/Add", { amount: 10 });
+
+    expect((store.stateValue as any).value).toBe(10);
+  });
+
+  it("payload is undefined when withPayload is omitted (no payload! lie)", () => {
+    const action = createAction<void, CounterStateType>("Reset")
+      .withState((s) => ({ ...s, value: 0 }));
+
+    expect(action.payload).toBeUndefined();
+  });
+});
