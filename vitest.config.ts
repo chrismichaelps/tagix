@@ -9,7 +9,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-          exclude: ["src/react/**/*.test.ts"],
+          exclude: ["src/react/**/*.test.ts", "src/vue/**/*.test.ts"],
         },
       },
       {
