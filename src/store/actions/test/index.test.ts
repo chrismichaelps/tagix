@@ -1382,3 +1382,61 @@ describe("Payload Flow", () => {
     expect(capturedPayload).toEqual({ userId: 1, includePosts: true, page: 5 });
   });
 });
+
+describe("RelaxedState type safety (typos must fail to compile)", () => {
+  const StrictState = taggedEnum({
+    Idle: { value: 0 },
+    Loading: {},
+    Ready: { value: 0 },
+    Error: { message: "", code: 0 },
+  });
+
+  type StrictStateType = typeof StrictState.State;
+
+  it("lets real fields through the handler without narrowing", () => {
+    const inc = createAction<{ amount: number }, StrictStateType>("Inc")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    const store = createStore(StrictState.Idle({ value: 0 }), StrictState);
+    store.register("Inc", inc);
+    store.dispatch("tagix/action/Inc", { amount: 5 });
+
+    expect((store.stateValue as { value: number }).value).toBe(5);
+  });
+
+  it("catches a typo on a sync handler state field", () => {
+    // If RelaxedState ever reverts to `& Record<string, any>`, this @ts-expect-error
+    // will itself error ("unused @ts-expect-error") — surfacing the regression.
+    // The misspelling `valu` (not `value`) must NOT typecheck.
+    createAction<{ amount: number }, StrictStateType>("Bad")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => {
+        // @ts-expect-error property 'valu' does not exist on a bounded RelaxedState
+        return { ...s, value: s.valu + p.amount };
+      });
+    expect(true).toBe(true);
+  });
+
+  it("catches a typo on an async onSuccess state field", () => {
+    createAsyncAction<undefined, StrictStateType, number>("BadAsync")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => 1)
+      .onSuccess((s) => {
+        // @ts-expect-error property 'mesage' does not exist on a bounded RelaxedState
+        return { ...s, _tag: "Error" as const, message: s.mesage, code: 0 };
+      })
+      .onError((s) => s);
+    expect(true).toBe(true);
+  });
+
+  it("rejects accessing an unrelated property that no variant declares", () => {
+    createAction<undefined, StrictStateType>("NoProp")
+      .withPayload(undefined)
+      .withState((s) => {
+        // @ts-expect-error 'totallyInventedKey' is not a field on any variant
+        return { ...s, value: s.totallyInventedKey };
+      });
+    expect(true).toBe(true);
+  });
+});

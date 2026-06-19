@@ -27,11 +27,33 @@ import type { TagixContext } from "../context";
 import { ACTION_TYPE_PREFIX } from "../constants";
 
 /**
- * Relaxed state type for action handlers that allows accessing any property.
- * The `& Record<string, any>` intersection allows accessing variant-specific properties
- * without explicit type narrowing, while the base type ensures _tag is present.
+ * Union of every key present on any variant of the state discriminated union.
+ * Uses a distributive conditional so a key need only exist on one variant
+ * (unlike `keyof S`, which is the intersection of keys present on all members).
  */
-type RelaxedState<T extends { readonly _tag: string }> = T & Record<string, any>;
+type AllVariantKeys<S> = S extends any ? keyof S : never;
+
+/**
+ * The type of a single field across every variant that declares it, unioned.
+ * Distributive over `S`: for each member that has key `K`, contribute its type.
+ */
+type VariantField<S, K extends PropertyKey> = S extends { [P in K]: infer T }
+  ? T
+  : never;
+
+/**
+ * State parameter type for action handlers.
+ *
+ * Intersects the real discriminated union with a map of every variant field,
+ * keyed precisely. This keeps two ergonomics the original code relied on —
+ * spreading (`{ ...s, _tag: "X" }`) and accessing a field without narrowing —
+ * while closing the `any` hole: typos (`s.usr`) now fail to compile, and
+ * autocomplete only offers real fields. Each field carries its actual type
+ * (e.g. `value: number`), not `any`.
+ */
+type RelaxedState<T extends { readonly _tag: string }> = T & {
+  [K in AllVariantKeys<T>]: VariantField<T, K>;
+};
 
 interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
   withPayload(payload: TPayload): ActionBuilder<TPayload, TState>;
@@ -80,9 +102,9 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
   type: string
 ): ActionBuilder<TPayload, S> {
   let payload: TPayload | undefined;
-  let handler: ((state: S, payload: TPayload) => S) | undefined;
+  let handler: ((state: RelaxedState<S>, payload: TPayload) => S) | undefined;
   let handlerWithContext:
-    | ((state: S, payload: TPayload, context: TagixContext<S>) => S)
+    | ((state: RelaxedState<S>, payload: TPayload, context: TagixContext<S>) => S)
     | undefined;
 
   return {
@@ -94,7 +116,7 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
       handler = h;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         handler: handler!,
       } as Action<TPayload, S>;
     },
@@ -102,12 +124,12 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
       handlerWithContext = h;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         handler: () => {
           throw new Error("Handler with context must be called via context");
         },
         handlerWithContext: handlerWithContext!,
-      } as Action<TPayload, S>;
+      } as unknown as Action<TPayload, S>;
     },
   };
 }
@@ -137,11 +159,11 @@ export function createAsyncAction<
   S extends { readonly _tag: string } = never,
   TEffect = unknown,
 >(type: string): AsyncActionBuilder<TPayload, S, TEffect> {
-  let stateFn: (currentState: S) => S = (s) => s;
+  let stateFn: (currentState: RelaxedState<S>) => S = (s) => s;
   let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<TEffect> = async () =>
     undefined as TEffect;
-  let onSuccessFn: (currentState: S, result: TEffect) => S = (s) => s;
-  let onErrorFn: (currentState: S, error: unknown) => S = (s) => s;
+  let onSuccessFn: (currentState: RelaxedState<S>, result: TEffect) => S = (s) => s;
+  let onErrorFn: (currentState: RelaxedState<S>, error: unknown) => S = (s) => s;
   let payload: TPayload | undefined;
 
   return {
@@ -161,7 +183,7 @@ export function createAsyncAction<
       onErrorFn = fn;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         state: stateFn,
         effect: effectFn,
         onSuccess: onSuccessFn,
