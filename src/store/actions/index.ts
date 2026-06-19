@@ -70,6 +70,7 @@ interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
 }
 
 interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string }, TEffect> {
+  withPayload(payload: TPayload): AsyncActionBuilder<TPayload, TState, TEffect>;
   state(
     stateFn: (currentState: RelaxedState<TState>) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
@@ -90,9 +91,9 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
  * @returns Action builder with chainable methods.
  * @example
  * ```ts
- * const increment = createAction("Increment")
+ * const increment = createAction<{ amount: number }, CounterState>("Increment")
  *   .withPayload({ amount: 1 })
- *   .withState((s, p) => ({ count: s.count + p.amount }));
+ *   .withState((s, p) => ({ ...s, count: s.count + p.amount }));
  * ```
  */
 export function createAction<TPayload, S extends { readonly _tag: string }>(
@@ -142,9 +143,11 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
  * @param type - Unique action identifier.
  * @returns Async action builder with chainable methods.
  * @remarks Builder pattern: call `state`, `effect`, `onSuccess`, then `onError` to complete.
+ * `withPayload` is optional — when omitted the payload defaults to `undefined`.
  * @example
  * ```ts
  * const fetchUser = createAsyncAction<{ id: string }, UserState, User>("FetchUser")
+ *   .withPayload({ id: "" })
  *   .state(s => ({ ...s, loading: true }))
  *   .effect(p => api.getUser(p.id))
  *   .onSuccess((s, user) => ({ ...s, user, loading: false }))
@@ -167,6 +170,10 @@ export function createAsyncAction<
   let payload: TPayload | undefined;
 
   return {
+    withPayload(p): AsyncActionBuilder<TPayload, S, TEffect> {
+      payload = p;
+      return this;
+    },
     state(fn): AsyncActionBuilder<TPayload, S, TEffect> {
       stateFn = fn;
       return this;
