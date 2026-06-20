@@ -33,7 +33,7 @@ export interface StoreConfig<S extends { readonly _tag: string }> {
   readonly strict?: boolean;
   /** Maximum number of errors to retain in history. @default 50 */
   readonly maxErrorHistory?: number;
-  /** Maximum number of retries for failed async actions. @default 3 */
+  /** Maximum number of retries for failed async actions. `0` runs the effect exactly once (failures go straight to `onError`). Set `> 0` to retry; note non-idempotent effects (POST/create/delete) may then duplicate side effects. @default 0 */
   readonly maxRetries?: number;
   /** Middleware chain for intercepting dispatches. */
   readonly middlewares?: Array<Middleware<S>>;
