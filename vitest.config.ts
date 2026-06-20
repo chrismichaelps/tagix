@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { ADAPTERS, adapterTestExcludeGlobs } from "./adapters.config";
 
 export default defineConfig({
   test: {
@@ -9,23 +10,16 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-          exclude: ["src/react/**/*.test.ts", "src/vue/**/*.test.ts"],
+          exclude: adapterTestExcludeGlobs,
         },
       },
-      {
+      ...ADAPTERS.map((adapter) => ({
         test: {
-          name: "react",
-          environment: "jsdom",
-          include: ["src/react/**/*.test.ts"],
+          name: adapter.name,
+          environment: adapter.environment,
+          include: [`src/${adapter.name}/**/*.test.ts`],
         },
-      },
-      {
-        test: {
-          name: "vue",
-          environment: "happy-dom",
-          include: ["src/vue/**/*.test.ts"],
-        },
-      },
+      })),
     ],
   },
 });
