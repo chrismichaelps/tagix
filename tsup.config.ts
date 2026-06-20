@@ -1,7 +1,8 @@
 import { defineConfig } from "tsup";
+import { entryPoints } from "./adapters.config";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/react/index.ts", "src/vue/index.ts"],
+  entry: entryPoints,
   format: ["esm", "cjs"],
   dts: true,
   splitting: false,
