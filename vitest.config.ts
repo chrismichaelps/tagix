@@ -19,6 +19,13 @@ export default defineConfig({
           include: ["src/react/**/*.test.ts"],
         },
       },
+      {
+        test: {
+          name: "vue",
+          environment: "happy-dom",
+          include: ["src/vue/**/*.test.ts"],
+        },
+      },
     ],
   },
 });
