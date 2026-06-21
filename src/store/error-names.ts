@@ -112,9 +112,9 @@ export const isTagixError = (error: unknown): error is TagixErrorObject => {
 
   return (
     "_tag" in error &&
-    typeof (error as { _tag: unknown })._tag === "string" &&
+    typeof error._tag === "string" &&
     "code" in error &&
-    typeof (error as { code: unknown }).code === "number"
+    typeof error.code === "number"
   );
 };
 

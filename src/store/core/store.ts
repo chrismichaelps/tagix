@@ -238,8 +238,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   get lastErrorCode(): number | undefined {
     const error = this.lastError;
     if (isTagixError(error)) {
-      const taggedError = error as TagixErrorObject;
-      return taggedError.code;
+      return error.code;
     }
     return undefined;
   }
@@ -546,8 +545,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this._lastErrorValue = error;
 
     if (isTagixError(error)) {
-      const taggedError = error as TagixErrorObject;
-      const code = taggedError.code;
+      const code = error.code;
       const category = getErrorCategory(code);
 
       this._errorCodeIndex.set(code, (this._errorCodeIndex.get(code) ?? 0) + 1);
@@ -570,8 +568,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
       if (oldestTimestamp !== undefined) {
         const oldError = this._errorHistory.get(oldestTimestamp);
         if (isTagixError(oldError)) {
-          const taggedOld = oldError as TagixErrorObject;
-          const oldCode = taggedOld.code;
+          const oldCode = oldError.code;
           const oldCategory = getErrorCategory(oldCode);
 
           const codeCount = this._errorCodeIndex.get(oldCode) ?? 1;
