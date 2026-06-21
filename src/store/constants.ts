@@ -22,6 +22,11 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
   SOFTWARE.
  */
 
+/** Window shape augmented with the optional Redux DevTools extension hook. */
+interface WindowWithDevTools extends Window {
+  __REDUX_DEVTOOLS_EXTENSION__?: unknown;
+}
+
 /**
  * Default configuration values for TagixStore.
  * @remarks Used when no configuration is provided to `createStore`.
@@ -35,7 +40,8 @@ export const DEFAULT_CONFIG = {
   maxErrorHistory: 50,
   maxRetries: 0,
   devTools:
-    typeof window !== "undefined" && (window as any).__REDUX_DEVTOOLS_EXTENSION__ !== undefined,
+    typeof window !== "undefined" &&
+    (window as unknown as WindowWithDevTools).__REDUX_DEVTOOLS_EXTENSION__ !== undefined,
 } as const;
 
 /** Prefix applied to all action types internally. */
