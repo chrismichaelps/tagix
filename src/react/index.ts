@@ -235,16 +235,13 @@ function shallowEqual<T>(prev: T, next: T): boolean {
   ) {
     return false;
   }
-  const prevKeys = Object.keys(prev as Record<string, unknown>);
-  const nextKeys = Object.keys(next as Record<string, unknown>);
+  const prevObj = prev as Record<string, unknown>;
+  const nextObj = next as Record<string, unknown>;
+  const prevKeys = Object.keys(prevObj);
+  const nextKeys = Object.keys(nextObj);
   if (prevKeys.length !== nextKeys.length) return false;
   for (const key of prevKeys) {
-    if (
-      !Object.is(
-        (prev as Record<string, unknown>)[key],
-        (next as Record<string, unknown>)[key]
-      )
-    ) {
+    if (!Object.is(prevObj[key], nextObj[key])) {
       return false;
     }
   }
