@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ADAPTERS, entryPoints } from "../../../adapters.config";
+import { ADAPTERS, entryPoints, adapterExternals } from "../../../adapters.config";
 
 const pkgPath = resolve(__dirname, "../../../package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
   exports: Record<string, unknown>;
+  peerDependencies: Record<string, string>;
   peerDependenciesMeta: Record<string, { optional?: boolean }>;
 };
 
@@ -26,6 +27,18 @@ describe("adapters.config ↔ package.json sync", () => {
     }
   });
 
+  it("every adapter is declared as a peer dependency", () => {
+    // peerDependenciesMeta alone is meaningless without peerDependencies.
+    // Without this block, tsup has no signal to keep the framework external,
+    // and the entire framework gets bundled into the adapter chunk.
+    for (const adapter of ADAPTERS) {
+      expect(
+        pkg.peerDependencies,
+        `${adapter.name} must be listed in peerDependencies`
+      ).toHaveProperty(adapter.name);
+    }
+  });
+
   it("every adapter is marked as an optional peer dependency", () => {
     for (const adapter of ADAPTERS) {
       expect(
@@ -42,6 +55,17 @@ describe("adapters.config ↔ package.json sync", () => {
         entryPoints,
         `entryPoints must include src/${adapter.name}/index.ts`
       ).toContain(`src/${adapter.name}/index.ts`);
+    }
+  });
+
+  it("every adapter framework is marked external for tsup", () => {
+    // If a framework is missing from adapterExternals, tsup bundles it into
+    // the adapter chunk — vue ballooned to 2 MB before this guard existed.
+    for (const adapter of ADAPTERS) {
+      expect(
+        adapterExternals,
+        `${adapter.name} must be in adapterExternals so tsup keeps it external`
+      ).toContain(adapter.name);
     }
   });
 

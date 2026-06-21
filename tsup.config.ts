@@ -1,5 +1,5 @@
 import { defineConfig } from "tsup";
-import { entryPoints } from "./adapters.config";
+import { entryPoints, adapterExternals } from "./adapters.config";
 
 export default defineConfig({
   entry: entryPoints,
@@ -11,4 +11,7 @@ export default defineConfig({
   minify: false,
   treeshake: true,
   platform: "node",
+  // Adapter frameworks (react, vue) are optional peer dependencies —
+  // never bundle them; consumers provide their own copy.
+  external: [...adapterExternals],
 });

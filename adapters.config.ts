@@ -30,3 +30,6 @@ export const adapterTestExcludeGlobs = ADAPTERS.map((a) => `src/${a.name}/**/*.t
 
 /** tsup entry points: the core entry plus one per adapter. */
 export const entryPoints = ["src/index.ts", ...ADAPTERS.map((a) => `src/${a.name}/index.ts`)];
+
+/** Package names that adapters depend on — kept external so tsup never bundles them. */
+export const adapterExternals = [...ADAPTERS.map((a) => a.name)];
