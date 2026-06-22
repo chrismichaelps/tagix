@@ -35,6 +35,14 @@ import type { ServiceTag } from "./services/types";
  */
 export type ContextId = symbol | string;
 
+/**
+ * Sentinel marking "no selected value seen yet" inside `select()`.
+ * Distinct from `undefined` because a selector may legitimately select
+ * `undefined` (e.g. over an optional field); conflating the two caused every
+ * `undefined`-returning selector to bypass change dedup and fire on each dispatch.
+ */
+const NO_SELECTION = Symbol("tagix/no-selection");
+
 interface ContextEntry<T> {
   id: ContextId;
   value: T;
@@ -280,11 +288,11 @@ export class TagixContext<S extends { readonly _tag: string }> {
       });
     }
 
-    let lastSelected: T | undefined;
+    let lastSelected: T | typeof NO_SELECTION = NO_SELECTION;
 
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
-      if (lastSelected !== undefined && deepEqual(selected, lastSelected)) {
+      if (lastSelected !== NO_SELECTION && deepEqual(selected, lastSelected)) {
         return;
       }
       lastSelected = selected;
@@ -660,11 +668,11 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       });
     }
 
-    let lastSelected: U | undefined;
+    let lastSelected: U | typeof NO_SELECTION = NO_SELECTION;
 
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
-      if (lastSelected !== undefined && deepEqual(selected, lastSelected)) {
+      if (lastSelected !== NO_SELECTION && deepEqual(selected, lastSelected)) {
         return;
       }
       lastSelected = selected;

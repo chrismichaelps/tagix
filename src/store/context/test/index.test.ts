@@ -119,6 +119,39 @@ describe("TagixContext", () => {
 
       expect(tag).toBe("Ready");
     });
+
+    it("deduplicates consecutive undefined selections from an optional field", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // `message` is undefined unless the state is Error — a selector over an
+      // optional field must dedup its `undefined` result, not fire on every change.
+      const unsubscribe = context.select(
+        (state) => (state._tag === "Error" ? state.message : undefined),
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1);
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      // Selected value stays undefined across both dispatches — no spurious fires.
+      expect(calls).toBe(1);
+
+      unsubscribe();
+    });
   });
 
   describe("subscribeKey", () => {
@@ -464,9 +497,7 @@ describe("TagixContext", () => {
         }
       );
 
-      // Measure additional fires from a baseline (the initial settle may invoke
-      // the callback more than once as the selector sees the derived value then
-      // the parent state).
+      // Initial settle fires once.
       const baseline = calls;
 
       store.dispatch("tagix/action/Increment", { amount: 5 });
@@ -474,6 +505,37 @@ describe("TagixContext", () => {
 
       // No extra fires — the selected boolean is unchanged across both dispatches.
       expect(calls).toBe(baseline);
+
+      unsubscribe();
+    });
+
+    it("deduplicates consecutive undefined selections on a derived context", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+      const subContext = context.provide("flag", { active: true });
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      const unsubscribe = subContext.select(
+        (state) => (state._tag === "Error" ? state.message : undefined),
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1);
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      expect(calls).toBe(1);
 
       unsubscribe();
     });
