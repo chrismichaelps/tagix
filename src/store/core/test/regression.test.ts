@@ -241,3 +241,43 @@ describe("regression: core state transitions", () => {
     expect(strictStore.lastErrorCategory).toBe("STATE");
   });
 });
+
+describe("regression: re-entrant subscriber dispatch must not recurse unboundedly", () => {
+  it("defers a subscriber's synchronous dispatch instead of recursing into the stack", () => {
+    const store = createStore(ApiState.Success({ data: 0 }), ApiState);
+
+    const increment = createAction<void, ApiStateType>("Increment")
+      .withPayload(undefined)
+      .withState((s) =>
+        s._tag === "Success" ? ApiState.Success({ data: s.data + 1 }) : s
+      );
+    store.register("Increment", increment);
+
+    // An unconditionally-dispatching subscriber. Before the fix this recursed
+    // ~690 frames deep until the JS engine threw a RangeError, which notify's
+    // try/catch silently swallowed — so dispatch "succeeded" while error
+    // history was polluted with a hidden stack overflow.
+    let seen = 0;
+    let depth = 0;
+    let maxDepth = 0;
+    store.subscribe(() => {
+      depth++;
+      maxDepth = Math.max(maxDepth, depth);
+      seen++;
+      if (seen <= 20) store.dispatch("Increment", undefined);
+      depth--;
+    });
+
+    store.dispatch("Increment", undefined);
+
+    // All 20 chained dispatches were delivered (state advanced by them)…
+    expect(store.stateValue._tag === "Success" ? store.stateValue.data : 0).toBeGreaterThanOrEqual(20);
+    // …but the notification stack stayed shallow — no deep recursion.
+    expect(maxDepth).toBeLessThan(20);
+    // And no swallowed RangeError lurks in error history.
+    const messages = store.errorHistory.map((e) =>
+      e instanceof Error ? e.message : String(e)
+    );
+    expect(messages.some((m) => /maximum call stack/i.test(m))).toBe(false);
+  });
+});
