@@ -77,6 +77,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private _actionsDirty: boolean = false;
   private _cachedActionKeys: readonly string[] = [];
   private _cachedActionsMap: ReadonlyMap<string, AnyAction> = new Map();
+  // Re-entrancy guard: while subscribers are being notified, any nested
+  // notify (from a subscriber that calls dispatch) is pushed onto the queue
+  // and flushed after the current pass — instead of recursing into the stack,
+  // which otherwise runs ~hundreds of frames deep and overflows.
+  private _notifying: boolean = false;
+  private _pendingNotifications: number = 0;
 
   constructor(
     initialState: S,
@@ -604,13 +610,51 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private notifySubscribers(): void {
-    const currentState = this.state;
-    for (const subscriber of this.subscribers) {
-      try {
-        subscriber(currentState);
-      } catch (error) {
-        this.recordError(error);
+    // A notification pass is already running: record that a deferred flush is
+    // needed and return. The active pass will pick it up instead of recursing
+    // synchronously (which otherwise runs hundreds of frames deep and overflows).
+    if (this._notifying) {
+      this._pendingNotifications++;
+      return;
+    }
+
+    this._notifying = true;
+    let flushPasses = 0;
+    try {
+      // Flush passes: the initial notification plus any deferred ones. Each
+      // pass holds _notifying true so nested notify calls defer rather than
+      // recurse. A flush may schedule further passes, so loop until drained
+      // — but cap iterations to prevent an infinite synchronous loop when a
+      // subscriber dispatches unconditionally (a user-side infinite loop).
+      const maxFlushPasses = 100;
+      do {
+        if (this._pendingNotifications > 0) {
+          this._pendingNotifications--;
+        }
+        flushPasses++;
+        const currentState = this.state;
+        for (const subscriber of this.subscribers) {
+          try {
+            subscriber(currentState);
+          } catch (error) {
+            this.recordError(error);
+          }
+        }
+      } while (this._pendingNotifications > 0 && flushPasses < maxFlushPasses);
+
+      // If deferred notifications remain after hitting the cap, a subscriber
+      // is dispatching unconditionally — break the cycle and record a warning.
+      if (this._pendingNotifications > 0) {
+        const discarded = this._pendingNotifications;
+        this._pendingNotifications = 0;
+        this.recordError(
+          new Error(
+            `Notification cycle detected: ${discarded} deferred notification(s) discarded after ${maxFlushPasses} flush passes. A subscriber is dispatching on every notification.`
+          )
+        );
       }
+    } finally {
+      this._notifying = false;
     }
   }
 
