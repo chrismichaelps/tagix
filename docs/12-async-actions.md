@@ -105,6 +105,29 @@ const fetchUsers = createAsyncAction("FetchUsers")
   }));
 ```
 
+### Accessing services in onSuccess / onError
+
+Like `effect`, the `onSuccess` and `onError` handlers receive the dispatch **context** as a third argument, so they can use services (logging, error reporting, analytics) when dispatched via a context. The argument is optional — handlers that ignore it are unchanged.
+
+```ts
+const fetchUser = createAsyncAction<{ id: string }, UserState, User>("FetchUser")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect((payload, context) => context.getService(Api).getUser(payload.id))
+  .onSuccess((state, user, context) => {
+    context.getService(Logger).info(`loaded ${user.id}`);
+    return { ...state, _tag: "Success", user };
+  })
+  .onError((state, error, context) => {
+    context.getService(Reporter).report(error);
+    return { ...state, _tag: "Error", message: String(error) };
+  });
+
+// Dispatch through a context so services are available:
+context.dispatch(fetchUser, { id: "42" });
+```
+
+> The context is only populated when dispatching through a `TagixContext`. With a bare `store.dispatch`, the third argument is `null`.
+
 ## Complete Example
 
 ```ts

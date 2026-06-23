@@ -37,9 +37,7 @@ type AllVariantKeys<S> = S extends any ? keyof S : never;
  * The type of a single field across every variant that declares it, unioned.
  * Distributive over `S`: for each member that has key `K`, contribute its type.
  */
-type VariantField<S, K extends PropertyKey> = S extends { [P in K]: infer T }
-  ? T
-  : never;
+type VariantField<S, K extends PropertyKey> = S extends { [P in K]: infer T } ? T : never;
 
 /**
  * State parameter type for action handlers.
@@ -78,10 +76,18 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
     effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TEffect>
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onSuccess(
-    handler: (currentState: RelaxedState<TState>, result: TEffect) => TState
+    handler: (
+      currentState: RelaxedState<TState>,
+      result: TEffect,
+      context: TagixContext<TState>
+    ) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onError(
-    handler: (currentState: RelaxedState<TState>, error: unknown) => TState
+    handler: (
+      currentState: RelaxedState<TState>,
+      error: unknown,
+      context: TagixContext<TState>
+    ) => TState
   ): AsyncAction<TPayload, TState, TEffect>;
 }
 
@@ -165,8 +171,14 @@ export function createAsyncAction<
   let stateFn: (currentState: RelaxedState<S>) => S = (s) => s;
   let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<TEffect> = async () =>
     undefined as TEffect;
-  let onSuccessFn: (currentState: RelaxedState<S>, result: TEffect) => S = (s) => s;
-  let onErrorFn: (currentState: RelaxedState<S>, error: unknown) => S = (s) => s;
+  let onSuccessFn: (
+    currentState: RelaxedState<S>,
+    result: TEffect,
+    context: TagixContext<S>
+  ) => S = (s) => s;
+  let onErrorFn: (currentState: RelaxedState<S>, error: unknown, context: TagixContext<S>) => S = (
+    s
+  ) => s;
   let payload: TPayload | undefined;
 
   return {
