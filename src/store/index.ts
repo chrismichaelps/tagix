@@ -29,6 +29,7 @@ export * from "./error";
 export * from "./core";
 export * from "./actions";
 export * from "./slice";
+export * from "./persist";
 export * from "./guards";
 export * from "./match";
 export * from "./context";

@@ -274,6 +274,32 @@ const store = createStore(initialState, AppState, {
 });
 ```
 
+## Persisting State
+
+`persist` hydrates a store from a key/value storage on startup and writes the serialized state on every change. It works with any `StorageLike` backend (`localStorage`, `sessionStorage`, an in-memory object in tests, or a custom adapter) and returns a function that stops persisting.
+
+```ts
+import { persist } from "tagix";
+
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+// Hydrate from + save to localStorage under "counter":
+const stop = persist(store, { key: "counter" });
+
+// Custom backend / serialization:
+persist(store, {
+  key: "counter",
+  storage: sessionStorage,
+  serialize: (s) => JSON.stringify(s),
+  deserialize: (raw) => JSON.parse(raw),
+  onError: (e) => console.warn("persist failed", e),
+});
+
+stop(); // stop writing on change
+```
+
+Hydration goes through `store.setState`, so it honors `strict` validation; corrupt or invalid stored data is reported via `onError` and otherwise ignored. State must be serializable (JSON by default).
+
 ## See Also
 
 - [Actions](11-actions.md) - How actions flow through the system
