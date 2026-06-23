@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
 import {
   select,
   pluck,
   memoize,
   combineSelectors,
+  createSelector,
   patch,
   getOrDefault,
   taggedEnum,
@@ -323,5 +324,56 @@ describe("deepEqual() with cyclic references", () => {
     const selector = memoize((i: { value: number }) => i.value * 2);
     expect(selector(input as unknown as { value: number })).toBe(10);
     expect(selector(input as unknown as { value: number })).toBe(10);
+  });
+});
+
+describe("createSelector()", () => {
+  interface State {
+    items: number[];
+    taxRate: number;
+    label: string;
+  }
+
+  it("computes from input selectors", () => {
+    const selectTotal = createSelector(
+      (s: State) => s.items,
+      (s: State) => s.taxRate,
+      (items, taxRate) => items.reduce((a, b) => a + b, 0) * (1 + taxRate)
+    );
+    expect(selectTotal({ items: [1, 2, 3], taxRate: 0.1, label: "x" })).toBeCloseTo(6.6);
+  });
+
+  it("recomputes only when a relevant input changes by reference", () => {
+    let runs = 0;
+    const items = [1, 2, 3];
+    const selectSum = createSelector(
+      (s: State) => s.items,
+      (got) => {
+        runs++;
+        return got.reduce((a, b) => a + b, 0);
+      }
+    );
+
+    const s1: State = { items, taxRate: 0.1, label: "a" };
+    expect(selectSum(s1)).toBe(6);
+    expect(runs).toBe(1);
+
+    // Unrelated field changed, but `items` is the same reference → cached.
+    const s2: State = { items, taxRate: 0.2, label: "b" };
+    expect(selectSum(s2)).toBe(6);
+    expect(runs).toBe(1);
+
+    // `items` reference changed → recompute.
+    const s3: State = { items: [10, 20], taxRate: 0.2, label: "b" };
+    expect(selectSum(s3)).toBe(30);
+    expect(runs).toBe(2);
+  });
+
+  it("infers the result type", () => {
+    const selectLen = createSelector(
+      (s: State) => s.label,
+      (label) => label.length
+    );
+    expectTypeOf(selectLen).toEqualTypeOf<(state: State) => number>();
   });
 });

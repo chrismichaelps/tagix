@@ -40,6 +40,7 @@ export {
   select,
   pluck,
   combineSelectors,
+  createSelector,
   memoize,
   getOrDefault,
 } from "./selectors";
