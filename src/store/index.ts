@@ -28,6 +28,7 @@ export * from "./error-names";
 export * from "./error";
 export * from "./core";
 export * from "./actions";
+export * from "./slice";
 export * from "./guards";
 export * from "./match";
 export * from "./context";
