@@ -1,5 +1,13 @@
 import { describe, it, expect, expectTypeOf } from "vitest";
-import { createSlice, createAsyncAction, taggedEnum } from "../../index";
+import {
+  createSlice,
+  createAsyncAction,
+  createAction,
+  createActionGroup,
+  createStore,
+  bindActions,
+  taggedEnum,
+} from "../../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -122,5 +130,55 @@ describe("createSlice", () => {
         "network down"
       );
     });
+  });
+});
+
+describe("bindActions", () => {
+  const incrementAction = createAction<{ amount: number }, CounterStateType>("Increment").withState(
+    (s, p) => CounterState.Ready({ value: s.value + p.amount })
+  );
+  const resetAction = createAction<void, CounterStateType>("Reset").withState(() =>
+    CounterState.Idle({ value: 0 })
+  );
+
+  it("registers a group and returns typed bound dispatchers", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const group = createActionGroup("Counter", {
+      increment: incrementAction,
+      reset: resetAction,
+    });
+    const actions = bindActions(store, group);
+
+    actions.increment({ amount: 5 });
+    expect(value(store.stateValue)).toBe(5);
+
+    actions.reset();
+    expect(store.stateValue._tag).toBe("Idle");
+  });
+
+  it("infers the payload type per action", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const actions = bindActions(store, { increment: incrementAction });
+    expectTypeOf(actions.increment).toEqualTypeOf<(payload: { amount: number }) => void>();
+  });
+
+  it("binds async actions to Promise-returning dispatchers", async () => {
+    const ApiState = taggedEnum({ Idle: {}, Loading: {}, Ready: { data: "" } });
+    type ApiStateType = typeof ApiState.State;
+
+    const load = createAsyncAction<{ id: string }, ApiStateType, string>("Load")
+      .state(() => ApiState.Loading({}))
+      .effect(async (p) => `data-${p.id}`)
+      .onSuccess((_s, data) => ApiState.Ready({ data }))
+      .onError((s) => s);
+
+    const store = createStore(ApiState.Idle({}), ApiState);
+    const actions = bindActions(store, { load });
+
+    expectTypeOf(actions.load).toEqualTypeOf<(payload: { id: string }) => Promise<void>>();
+
+    await actions.load({ id: "7" });
+    expect(store.stateValue._tag).toBe("Ready");
+    expect((store.stateValue as Extract<ApiStateType, { data: string }>).data).toBe("data-7");
   });
 });

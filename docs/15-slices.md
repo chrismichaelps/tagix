@@ -107,6 +107,21 @@ await users.actions.fetch({ id: "42" }); // (payload) => Promise<void>
 
 Sync transitions return `void`; async actions return a `Promise<void>` you can await. Dispatch through a context (`createContext(users.store)`) to make services available to the effect and its `onSuccess`/`onError` handlers.
 
+## Binding existing actions
+
+Already have `createAction` / `createActionGroup` definitions? `bindActions` gives them the same call ergonomics without rewriting to a slice — it registers the group on a store and returns bound, typed dispatchers:
+
+```ts
+import { bindActions, createActionGroup } from "tagix";
+
+const UserActions = createActionGroup("User", { login, logout });
+const actions = bindActions(store, UserActions);
+
+actions.login({ name: "Ada" }); // typed; dispatches through the store
+```
+
+Sync actions become `(payload) => void`; async actions become `(payload) => Promise<void>`.
+
 ## API Reference
 
 ### createSlice(config)
