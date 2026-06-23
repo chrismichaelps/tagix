@@ -92,6 +92,24 @@ expensiveSelector(obj); // 10 (cached), callCount still 1
 expensiveSelector({ value: 5 }); // 10 (new reference), callCount = 2
 ```
 
+### createSelector
+
+Compose input selectors with a combiner that is memoized per input. The combiner only re-runs when one of its inputs changes (compared by reference) — the reselect / Redux Toolkit `createSelector` pattern. Use it for derived values that are expensive to compute.
+
+```ts
+import { createSelector } from "tagix";
+
+const selectTotal = createSelector(
+  (s: State) => s.items,
+  (s: State) => s.taxRate,
+  (items, taxRate) => items.reduce((sum, i) => sum + i.price, 0) * (1 + taxRate)
+);
+
+selectTotal(state); // recomputes only when `items` or `taxRate` change by reference
+```
+
+Unlike `memoize` (which compares the whole input with deep equality) and `combineSelectors` (which only bundles results into a tuple), `createSelector` recomputes a derived result solely when a relevant input changes — ideal with tagix's immutable state, where unchanged slices keep their reference.
+
 ### combineSelectors
 
 Combine multiple selectors into one function that returns an array of results.

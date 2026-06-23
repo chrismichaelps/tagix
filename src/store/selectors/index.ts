@@ -305,6 +305,67 @@ export function memoize<T extends object, R>(selector: (input: T) => R): (input:
 }
 
 /**
+ * Composes input selectors with a combiner, memoizing the result so the combiner
+ * only re-runs when one of the input values changes (compared by reference).
+ *
+ * This is the reselect / Redux Toolkit `createSelector` pattern: derive cheap
+ * inputs from state, then compute an expensive result that is cached until a
+ * relevant input actually changes — unlike `memoize`, which compares the whole
+ * input, or `combineSelectors`, which only bundles results into a tuple.
+ *
+ * @typeParam T - The input state type.
+ * @example
+ * ```ts
+ * const selectTotal = createSelector(
+ *   (s: State) => s.items,
+ *   (s: State) => s.taxRate,
+ *   (items, taxRate) => expensiveSum(items) * (1 + taxRate)
+ * );
+ * selectTotal(state); // recomputes only when items or taxRate change by reference
+ * ```
+ */
+export function createSelector<T, R1, Result>(
+  input1: (state: T) => R1,
+  combiner: (r1: R1) => Result
+): (state: T) => Result;
+export function createSelector<T, R1, R2, Result>(
+  input1: (state: T) => R1,
+  input2: (state: T) => R2,
+  combiner: (r1: R1, r2: R2) => Result
+): (state: T) => Result;
+export function createSelector<T, R1, R2, R3, Result>(
+  input1: (state: T) => R1,
+  input2: (state: T) => R2,
+  input3: (state: T) => R3,
+  combiner: (r1: R1, r2: R2, r3: R3) => Result
+): (state: T) => Result;
+export function createSelector<T>(
+  ...args:
+    | ReadonlyArray<(state: T) => unknown>
+    | [...Array<(state: T) => unknown>, (...inputs: never[]) => unknown]
+): (state: T) => unknown {
+  const combiner = args[args.length - 1] as (...inputs: unknown[]) => unknown;
+  const inputs = args.slice(0, -1) as ReadonlyArray<(state: T) => unknown>;
+
+  let lastInputs: unknown[] | undefined;
+  let lastResult: unknown;
+
+  return (state: T): unknown => {
+    const current = inputs.map((input) => input(state));
+    if (
+      lastInputs !== undefined &&
+      current.length === lastInputs.length &&
+      current.every((value, index) => Object.is(value, lastInputs![index]))
+    ) {
+      return lastResult;
+    }
+    lastInputs = current;
+    lastResult = combiner(...current);
+    return lastResult;
+  };
+}
+
+/**
  * Type guard that checks if an object has a specific property.
  * @typeParam T - The object type.
  * @typeParam K - The property key type.
