@@ -166,3 +166,59 @@ export function createSlice<
 
   return { store, actions };
 }
+
+/**
+ * The bound dispatcher derived from a pre-built action. An async action becomes
+ * `(payload: P) => Promise<void>`; a sync action becomes `(payload: P) => void`.
+ */
+export type BoundDispatcher<A> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  A extends AsyncAction<infer P, any, any>
+    ? (payload: P) => Promise<void>
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      A extends Action<infer P, any>
+      ? (payload: P) => void
+      : never;
+
+/**
+ * Registers a group of pre-built actions on a store and returns bound, typed
+ * dispatchers — call `actions.login(payload)` instead of
+ * `store.dispatch(login, payload)` or the stringly-typed `store.dispatch("Login", payload)`.
+ *
+ * Use this when you already have `createAction` / `createActionGroup` definitions
+ * and want the same call ergonomics as {@link createSlice} without rewriting them.
+ *
+ * @typeParam S - The store's state type.
+ * @typeParam G - The record of actions.
+ * @param store - The store to register on and dispatch through.
+ * @param group - A record of actions (e.g. from `createActionGroup`).
+ * @returns An object of bound dispatchers, one per action.
+ *
+ * @example
+ * ```ts
+ * const UserActions = createActionGroup("User", { login, logout });
+ * const actions = bindActions(store, UserActions);
+ *
+ * actions.login({ name: "Ada" }); // typed; dispatches through the store
+ * ```
+ */
+export function bindActions<
+  S extends { readonly _tag: string },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  G extends Record<string, Action<any, S> | AsyncAction<any, S, any>>,
+>(store: TagixStore<S>, group: G): { [K in keyof G]: BoundDispatcher<G[K]> } {
+  store.registerGroup(group as unknown as Record<string, Action<unknown, S>>);
+  const bound = {} as { [K in keyof G]: BoundDispatcher<G[K]> };
+
+  for (const key of Object.keys(group)) {
+    const action = group[key];
+    (bound as Record<string, (payload?: unknown) => void | Promise<void>>)[key] = (
+      payload?: unknown
+    ) =>
+      isAsyncAction(action)
+        ? store.dispatch(action as AsyncAction<unknown, S, unknown>, payload)
+        : store.dispatch(action as Action<unknown, S>, payload);
+  }
+
+  return bound;
+}
