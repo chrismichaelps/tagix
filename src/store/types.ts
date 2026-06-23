@@ -70,10 +70,10 @@ export interface AsyncAction<TPayload = never, TState = never, TError = never> {
   readonly state: (currentState: TState) => TState;
   /** Side effect to execute (awaits completion). @param payload - Payload from dispatch. @param context - TagixContext if provided. @returns Effect result. */
   readonly effect: (payload: TPayload, context: unknown) => Promise<unknown>;
-  /** Success handler (runs after effect resolves). */
-  readonly onSuccess: (currentState: TState, result: unknown) => TState;
-  /** Error handler (runs if effect rejects or throws). */
-  readonly onError: (currentState: TState, error: TError) => TState;
+  /** Success handler (runs after effect resolves). Receives the dispatch context (if any) as a third argument. */
+  readonly onSuccess: (currentState: TState, result: unknown, context: unknown) => TState;
+  /** Error handler (runs if effect rejects or throws). Receives the dispatch context (if any) as a third argument. */
+  readonly onError: (currentState: TState, error: TError, context: unknown) => TState;
 }
 
 /**

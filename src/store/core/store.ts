@@ -495,7 +495,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
         const done = match(result, {
           onRight: (value) => {
             const freshState = this.state;
-            const mergedState = this._mergeAsyncState(freshState, value, action.onSuccess);
+            const mergedState = this._mergeAsyncState(freshState, value, action.onSuccess, context);
             this._assertValidState(mergedState, action.type);
             this.state = mergedState;
             this.notifySubscribers();
@@ -506,7 +506,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
             attempt++;
             if (attempt <= maxRetries) {
               const freshState = this.state;
-              pendingState = action.onError(freshState, error);
+              pendingState = action.onError(freshState, error, context);
               this._assertValidState(pendingState, action.type);
               this.state = pendingState;
               this.notifySubscribers();
@@ -521,7 +521,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
       }
 
       const freshState = this.state;
-      const mergedState = this._mergeAsyncState(freshState, lastError, action.onError);
+      const mergedState = this._mergeAsyncState(freshState, lastError, action.onError, context);
       this._assertValidState(mergedState, action.type);
       this.state = mergedState;
       this.recordError(lastError);
@@ -537,9 +537,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private _mergeAsyncState(
     freshState: S,
     handlerInput: unknown,
-    handler: (state: S, input: unknown) => S
+    handler: (state: S, input: unknown, context: unknown) => S,
+    context: unknown
   ): S {
-    return handler(freshState, handlerInput);
+    return handler(freshState, handlerInput, context);
   }
 
   private recordError(error: unknown): void {
