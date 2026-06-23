@@ -25,7 +25,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 import { createStore } from "../core/factory";
 import { createAction } from "../actions";
 import type { TagixStore } from "../core/store";
-import type { Action, StoreConfig } from "../types";
+import { type Action, type AsyncAction, type StoreConfig, isAsyncAction } from "../types";
 import type { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
 
 /** Union of every key present on any variant of the state union. */
@@ -53,19 +53,32 @@ export type SliceTransition<S extends { readonly _tag: string }> = (
   ...payload: any[]
 ) => S;
 
-/** The record of named transitions passed to {@link createSlice}. */
-export type SliceTransitions<S extends { readonly _tag: string }> = Record<
-  string,
-  SliceTransition<S>
->;
+/**
+ * A single slice action definition: either a synchronous transition, or a
+ * pre-built async action (from `createAsyncAction(...)`) for side effects.
+ */
+export type SliceAction<S extends { readonly _tag: string }> =
+  | SliceTransition<S>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | AsyncAction<any, S, any>;
+
+/** The record of named actions passed to {@link createSlice}. */
+export type SliceTransitions<S extends { readonly _tag: string }> = Record<string, SliceAction<S>>;
 
 /**
- * The bound, typed dispatcher derived from a transition. A transition that
- * declares a payload parameter becomes `(payload: P) => void`; one that takes
- * only the state becomes `() => void`.
+ * The bound, typed dispatcher derived from a slice action.
+ * - An async action becomes `(payload: P) => Promise<void>`.
+ * - A transition that declares a payload becomes `(payload: P) => void`.
+ * - A transition that takes only the state becomes `() => void`.
  */
-export type BoundAction<H extends (...args: never[]) => unknown> =
-  Parameters<H> extends [unknown, infer P] ? (payload: P) => void : () => void;
+export type BoundAction<H> =
+  H extends AsyncAction<infer P, infer _S, infer _E>
+    ? (payload: P) => Promise<void>
+    : H extends (...args: never[]) => unknown
+      ? Parameters<H> extends [unknown, infer P]
+        ? (payload: P) => void
+        : () => void
+      : never;
 
 /**
  * The result of {@link createSlice}: a ready-to-use store plus an object of
@@ -127,17 +140,28 @@ export function createSlice<
   const store = createStore(config.state, config.schema, config.config);
   const actions = {} as { [K in keyof A]: BoundAction<A[K]> };
 
+  const bound = actions as Record<string, (payload?: unknown) => void | Promise<void>>;
+
   for (const key of Object.keys(config.actions)) {
-    const transition = config.actions[key];
-    // Cast to a base-state handler: RelaxedState<S> is assignable to S, so this
-    // satisfies withState's parameter (contravariant) without coupling to the
-    // actions module's internal RelaxedState type alias.
+    const def = config.actions[key];
+
+    if (isAsyncAction(def)) {
+      // Pre-built async action: register it under the slice key and dispatch the
+      // object directly so its effect/onSuccess/onError lifecycle runs.
+      const asyncAction = def as AsyncAction<unknown, S, unknown>;
+      store.register(key, asyncAction);
+      bound[key] = (payload?: unknown) => store.dispatch(asyncAction, payload);
+      continue;
+    }
+
+    // Synchronous transition. Cast to a base-state handler: RelaxedState<S> is
+    // assignable to S, so this satisfies withState's parameter (contravariant)
+    // without coupling to the actions module's internal RelaxedState alias.
     const action = createAction<unknown, S>(key).withState(
-      transition as unknown as (state: S, payload: unknown) => S
+      def as unknown as (state: S, payload: unknown) => S
     );
     store.register(key, action);
-    (actions as Record<string, (payload?: unknown) => void>)[key] = (payload?: unknown) =>
-      store.dispatch(action as Action<unknown, S>, payload);
+    bound[key] = (payload?: unknown) => store.dispatch(action as Action<unknown, S>, payload);
   }
 
   return { store, actions };

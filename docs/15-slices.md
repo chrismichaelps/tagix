@@ -85,7 +85,7 @@ const counter = createSlice({
 
 ## Async side effects
 
-Slice transitions are synchronous (like Redux reducers). For asynchronous work, register a [`createAsyncAction`](12-async-actions.md) on the slice's store:
+Sync transitions are plain `(state, payload) => nextState` functions. For asynchronous work, drop a [`createAsyncAction`](12-async-actions.md) straight into the `actions` map — its bound dispatcher is typed `(payload) => Promise<void>`:
 
 ```ts
 const users = createSlice({
@@ -93,28 +93,30 @@ const users = createSlice({
   schema: UserState,
   actions: {
     clear: () => UserState.Idle({}),
+    fetch: createAsyncAction<{ id: string }, UserStateType, User>("FetchUser")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect((p, ctx) => ctx.getService(Api).getUser(p.id))
+      .onSuccess((s, user) => ({ ...s, _tag: "Ready", user }))
+      .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) })),
   },
 });
 
-const fetchUser = createAsyncAction<{ id: string }, UserStateType, User>("FetchUser")
-  .state((s) => ({ ...s, _tag: "Loading" }))
-  .effect((p, ctx) => ctx.getService(Api).getUser(p.id))
-  .onSuccess((s, user) => ({ ...s, _tag: "Ready", user }))
-  .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
-
-users.store.register("FetchUser", fetchUser);
+users.actions.clear(); // () => void
+await users.actions.fetch({ id: "42" }); // (payload) => Promise<void>
 ```
+
+Sync transitions return `void`; async actions return a `Promise<void>` you can await. Dispatch through a context (`createContext(users.store)`) to make services available to the effect and its `onSuccess`/`onError` handlers.
 
 ## API Reference
 
 ### createSlice(config)
 
-| Field     | Description                                                                               |
-| --------- | ----------------------------------------------------------------------------------------- |
-| `state`   | The initial state (a variant of the tagged union).                                        |
-| `schema`  | The tagged-enum constructor for the state.                                                |
-| `actions` | A record of named synchronous transitions `(state, payload?) => nextState`.               |
-| `config`  | Optional [store configuration](21-middleware.md) (`name`, `strict`, `middlewares`, etc.). |
+| Field     | Description                                                                                                      |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `state`   | The initial state (a variant of the tagged union).                                                               |
+| `schema`  | The tagged-enum constructor for the state.                                                                       |
+| `actions` | A record of named transitions `(state, payload?) => nextState`, or async actions built with `createAsyncAction`. |
+| `config`  | Optional [store configuration](21-middleware.md) (`name`, `strict`, `middlewares`, etc.).                        |
 
 Returns a `Slice` with:
 

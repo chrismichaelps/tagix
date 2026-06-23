@@ -1,5 +1,5 @@
 import { describe, it, expect, expectTypeOf } from "vitest";
-import { createSlice, taggedEnum } from "../../index";
+import { createSlice, createAsyncAction, taggedEnum } from "../../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -70,5 +70,57 @@ describe("createSlice", () => {
       config: { name: "counter-slice" },
     });
     expect(counter.store.name).toBe("counter-slice");
+  });
+
+  describe("async actions inline", () => {
+    const ApiState = taggedEnum({
+      Idle: {},
+      Loading: {},
+      Ready: { data: "" },
+      Failed: { message: "" },
+    });
+    type ApiStateType = typeof ApiState.State;
+
+    function makeApi() {
+      return createSlice({
+        state: ApiState.Idle({}),
+        schema: ApiState,
+        actions: {
+          reset: () => ApiState.Idle({}),
+          load: createAsyncAction<{ id: string }, ApiStateType, string>("Load")
+            .state(() => ApiState.Loading({}))
+            .effect(async (p) => {
+              if (p.id === "boom") throw new Error("network down");
+              return `data-${p.id}`;
+            })
+            .onSuccess((_s, data) => ApiState.Ready({ data }))
+            .onError((_s, e) => ApiState.Failed({ message: e instanceof Error ? e.message : "?" })),
+        },
+      });
+    }
+
+    it("infers an async dispatcher returning Promise<void>", () => {
+      const api = makeApi();
+      expectTypeOf(api.actions.load).toEqualTypeOf<(payload: { id: string }) => Promise<void>>();
+      expectTypeOf(api.actions.reset).toEqualTypeOf<() => void>();
+    });
+
+    it("runs the effect and applies onSuccess", async () => {
+      const api = makeApi();
+      await api.actions.load({ id: "42" });
+      expect(api.store.stateValue._tag).toBe("Ready");
+      expect((api.store.stateValue as Extract<ApiStateType, { data: string }>).data).toBe(
+        "data-42"
+      );
+    });
+
+    it("applies onError when the effect throws", async () => {
+      const api = makeApi();
+      await api.actions.load({ id: "boom" });
+      expect(api.store.stateValue._tag).toBe("Failed");
+      expect((api.store.stateValue as Extract<ApiStateType, { message: string }>).message).toBe(
+        "network down"
+      );
+    });
   });
 });
