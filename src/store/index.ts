@@ -46,6 +46,12 @@ export {
   getOrDefault,
 } from "./selectors";
 export { createLoggerMiddleware } from "./middlewares/logger";
+export {
+  createDevtoolsMiddleware,
+  type DevtoolsConnection,
+  type DevtoolsConnector,
+  type DevtoolsOptions,
+} from "./middlewares/devtools";
 export { deriveStore, DerivedStore } from "./derived";
 export type { DerivedStoreConfig } from "./derived";
 
