@@ -23,6 +23,7 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
+import { deepEqual } from "../selectors";
 import { some, none, type Option } from "../../lib/Data/option";
 import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
 import { isFunction, hasProperty } from "../../lib/Data/predicate";
@@ -666,14 +667,68 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @param callback - Function called immediately with current state, then on each change.
    * @returns Unsubscribe function to remove the callback.
    */
-  subscribe(callback: SubscribeCallback<S>): () => void {
+  subscribe(callback: SubscribeCallback<S>): () => void;
+  /**
+   * Subscribes to a derived value, invoking the listener only when the selected
+   * value changes. The listener receives the new and previous selected values.
+   * @typeParam T - The selected value type.
+   * @param selector - Derives the value to watch from state.
+   * @param listener - Called immediately with the current value (previous `undefined`),
+   *   then whenever the selected value changes.
+   * @param options - `equals` overrides the change comparison (default: deep equality).
+   * @returns Unsubscribe function.
+   * @example
+   * ```ts
+   * const stop = store.subscribe(
+   *   (s) => s.count,
+   *   (count, previous) => console.log(count, previous)
+   * );
+   * ```
+   */
+  subscribe<T>(
+    selector: (state: S) => T,
+    listener: (selected: T, previous: T | undefined) => void,
+    options?: { equals?: (a: T, b: T) => boolean }
+  ): () => void;
+  subscribe<T>(
+    callbackOrSelector: SubscribeCallback<S> | ((state: S) => T),
+    listener?: (selected: T, previous: T | undefined) => void,
+    options?: { equals?: (a: T, b: T) => boolean }
+  ): () => void {
+    if (listener === undefined) {
+      const callback = callbackOrSelector as SubscribeCallback<S>;
+      try {
+        callback(this.state);
+      } catch (error) {
+        this.recordError(error);
+      }
+      this.subscribers.add(callback);
+      return () => this.subscribers.delete(callback);
+    }
+
+    const selector = callbackOrSelector as (state: S) => T;
+    const equals = options?.equals ?? deepEqual;
+    let last!: T;
+    let hasLast = false;
+
+    const wrapped: SubscribeCallback<S> = (state) => {
+      const selected = selector(state);
+      if (hasLast && equals(selected, last)) {
+        return;
+      }
+      const previous = hasLast ? last : undefined;
+      last = selected;
+      hasLast = true;
+      listener(selected, previous);
+    };
+
     try {
-      callback(this.state);
+      wrapped(this.state);
     } catch (error) {
       this.recordError(error);
     }
-    this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
+    this.subscribers.add(wrapped);
+    return () => this.subscribers.delete(wrapped);
   }
 
   /**
