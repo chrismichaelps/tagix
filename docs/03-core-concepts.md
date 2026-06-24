@@ -75,6 +75,13 @@ const store = createStore(initialState, stateDefinition, {
 });
 ```
 
+Call `store.reset()` to restore the exact `initialState` the store was created with — handy for logout / "clear" flows and resetting between tests:
+
+```ts
+store.reset(); // back to initialState, notifies subscribers
+store.reset(false); // reset without notifying
+```
+
 ## Subscribers
 
 Components can subscribe to state changes:

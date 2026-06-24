@@ -59,6 +59,7 @@ type AnyAction = Action<any, any> | AsyncAction<any, any, any>;
  */
 export class TagixStore<S extends { readonly _tag: string }> {
   private state: S;
+  private readonly _initialState: S;
   private readonly stateConstructor: TaggedEnumConstructor<S>;
   private readonly actions: Map<string, AnyAction> = new Map();
   private readonly _errorHistory: Map<number, unknown> = new Map();
@@ -90,6 +91,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     config: StoreConfig<S> = {}
   ) {
     this.state = initialState;
+    this._initialState = initialState;
     this.stateConstructor = stateConstructor;
     this.config = { ...DEFAULT_CONFIG, ...config } as Required<StoreConfig<S>>;
 
@@ -780,6 +782,21 @@ export class TagixStore<S extends { readonly _tag: string }> {
       this._recordAndThrow(error);
     }
     this.state = newState;
+    if (notify) {
+      this.notifySubscribers();
+    }
+  }
+
+  /**
+   * Resets the store to the initial state it was created with.
+   * @param notify - Whether to notify subscribers of the change (default: true).
+   * @remarks
+   * Restores the exact `initialState` passed to `createStore`. Useful for logout,
+   * "clear" flows, and resetting between tests. Like `setState`, this bypasses
+   * action dispatch; error history is left intact (use `clearErrorHistory` to reset it).
+   */
+  reset(notify: boolean = true): void {
+    this.state = this._initialState;
     if (notify) {
       this.notifySubscribers();
     }
