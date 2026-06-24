@@ -94,6 +94,17 @@ const unsubscribe = store.subscribe((state) => {
 unsubscribe(); // Cleanup
 ```
 
+Subscribe to a **derived value** to be notified only when that value changes (deep-equality by default; pass `equals` to customize). The listener receives the new and previous selected values:
+
+```ts
+const stop = store.subscribe(
+  (state) => (state._tag === "Ready" ? state.value : 0),
+  (value, previous) => {
+    // Called immediately (previous = undefined), then only when `value` changes
+  }
+);
+```
+
 ## Middleware
 
 Middleware extends dispatch behavior by intercepting actions:
