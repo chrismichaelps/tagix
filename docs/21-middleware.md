@@ -237,6 +237,26 @@ const createUndoMiddleware = () => {
 };
 ```
 
+## Redux DevTools
+
+`createDevtoolsMiddleware` streams dispatched actions and state snapshots to the [Redux DevTools extension](https://github.com/reduxjs/redux-devtools), giving a tagix store the familiar action timeline and state inspector.
+
+```ts
+import { createDevtoolsMiddleware } from "tagix";
+
+const store = createStore(initialState, AppState, {
+  middlewares: [createDevtoolsMiddleware({ name: "App" })],
+});
+```
+
+When the extension isn't available (server-side, or not installed) the middleware is an inert pass-through. Pass a custom `connector` to target a mock or alternative backend:
+
+```ts
+createDevtoolsMiddleware({ name: "App", connector: myConnector });
+```
+
+Like the logger, it reports the state immediately after the action passes through the chain; an async action's final post-effect state is not a separate timeline entry.
+
 ## Combining Middleware
 
 Middleware order matters. The first middleware in the array sees the original action, and each subsequent middleware sees the action after previous middlewares have processed it.
