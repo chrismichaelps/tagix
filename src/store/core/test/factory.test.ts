@@ -340,3 +340,35 @@ describe("Store Edge Cases", () => {
     });
   });
 });
+
+describe("Store reset", () => {
+  it("restores the initial state passed to createStore", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment").withState(
+      (s, p) => CounterState.Ready({ value: getValue(s) + p.amount })
+    );
+    store.register("Increment", increment);
+
+    store.dispatch(increment, { amount: 5 });
+    expect(store.stateValue._tag).toBe("Ready");
+    expect(getValue(store.stateValue)).toBe(5);
+
+    store.reset();
+    expect(store.stateValue._tag).toBe("Idle");
+    expect(getValue(store.stateValue)).toBe(0);
+  });
+
+  it("notifies subscribers by default and can suppress with notify=false", () => {
+    const store = createStore(CounterState.Ready({ value: 9 }), CounterState);
+    const seen: string[] = [];
+    store.subscribe((s) => seen.push(s._tag)); // initial emit: "Ready"
+
+    store.reset();
+    expect(seen).toEqual(["Ready", "Ready"]); // reset to the Ready initial state notifies
+
+    store.setState(CounterState.Idle({ value: 1 }));
+    store.reset(false); // no notification
+    expect(seen).toEqual(["Ready", "Ready", "Idle"]);
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+});
