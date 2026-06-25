@@ -73,6 +73,25 @@ const fetchUsers = createAsyncAction("FetchUsers")
   .onError((state, error) => ({ ...state, _tag: "Error", message: String(error) }));
 ```
 
+**The effect's return type is inferred and flows into `onSuccess`** — `data` is the concrete result type, never `unknown`. You don't need the third type argument on `createAsyncAction`; annotate the effect's return (or let it infer) to type the result precisely:
+
+```ts
+interface User {
+  id: number;
+  name: string;
+}
+
+createAsyncAction<{ id: number }, AppState>("FetchUser")
+  .state(() => AppState.Loading({}))
+  .effect(async (payload): Promise<User> => {
+    const res = await fetch(`/api/users/${payload.id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as User;
+  })
+  .onSuccess((s, user) => AppState.Ready({ user })) // `user` is typed as User
+  .onError((s, error) => AppState.Failed({ message: String(error) }));
+```
+
 ### onSuccess(fn)
 
 Define the state transition when the effect completes successfully.

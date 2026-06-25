@@ -72,9 +72,9 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
   state(
     stateFn: (currentState: RelaxedState<TState>) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
-  effect(
-    effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TEffect>
-  ): AsyncActionBuilder<TPayload, TState, TEffect>;
+  effect<TNewEffect>(
+    effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TNewEffect>
+  ): AsyncActionBuilder<TPayload, TState, TNewEffect>;
   onSuccess(
     handler: (
       currentState: RelaxedState<TState>,
@@ -88,7 +88,7 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
       error: unknown,
       context: TagixContext<TState>
     ) => TState
-  ): AsyncAction<TPayload, TState, TEffect>;
+  ): AsyncAction<TPayload, TState, unknown>;
 }
 
 /**
@@ -160,7 +160,7 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
  *   .onError((s, err) => ({ ...s, error: err, loading: false }));
  * ```
  */
-export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect>(
+export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect = unknown>(
   type: string
 ): AsyncActionBuilder<TPayload, S, TEffect>;
 export function createAsyncAction<
@@ -168,12 +168,14 @@ export function createAsyncAction<
   S extends { readonly _tag: string } = never,
   TEffect = unknown,
 >(type: string): AsyncActionBuilder<TPayload, S, TEffect> {
+  // Internal handlers are stored loosely typed; the public builder type tracks
+  // the precise TEffect (inferred from `effect`) and feeds it to `onSuccess`.
   let stateFn: (currentState: RelaxedState<S>) => S = (s) => s;
-  let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<TEffect> = async () =>
-    undefined as TEffect;
+  let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<unknown> = async () =>
+    undefined;
   let onSuccessFn: (
     currentState: RelaxedState<S>,
-    result: TEffect,
+    result: unknown,
     context: TagixContext<S>
   ) => S = (s) => s;
   let onErrorFn: (currentState: RelaxedState<S>, error: unknown, context: TagixContext<S>) => S = (
@@ -181,25 +183,27 @@ export function createAsyncAction<
   ) => s;
   let payload: TPayload | undefined;
 
-  return {
+  const builder: AsyncActionBuilder<TPayload, S, TEffect> = {
     withPayload(p): AsyncActionBuilder<TPayload, S, TEffect> {
       payload = p;
-      return this;
+      return builder;
     },
     state(fn): AsyncActionBuilder<TPayload, S, TEffect> {
       stateFn = fn;
-      return this;
+      return builder;
     },
-    effect(fn): AsyncActionBuilder<TPayload, S, TEffect> {
-      effectFn = fn;
-      return this;
+    effect<TNewEffect>(
+      fn: (payload: TPayload, context: TagixContext<S>) => Promise<TNewEffect>
+    ): AsyncActionBuilder<TPayload, S, TNewEffect> {
+      effectFn = fn as typeof effectFn;
+      return builder as unknown as AsyncActionBuilder<TPayload, S, TNewEffect>;
     },
     onSuccess(fn): AsyncActionBuilder<TPayload, S, TEffect> {
-      onSuccessFn = fn;
-      return this;
+      onSuccessFn = fn as typeof onSuccessFn;
+      return builder;
     },
-    onError(fn): AsyncAction<TPayload, S, TEffect> {
-      onErrorFn = fn;
+    onError(fn): AsyncAction<TPayload, S, unknown> {
+      onErrorFn = fn as typeof onErrorFn;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
         payload: payload as TPayload,
@@ -207,9 +211,11 @@ export function createAsyncAction<
         effect: effectFn,
         onSuccess: onSuccessFn,
         onError: onErrorFn,
-      } as AsyncAction<TPayload, S, TEffect>;
+      } as AsyncAction<TPayload, S, unknown>;
     },
   };
+
+  return builder;
 }
 
 export { createActionGroup } from "./group";
