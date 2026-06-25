@@ -1,3 +1,66 @@
+## [1.3.0](https://github.com/chrismichaelps/tagix/compare/v1.2.2...v1.3.0) (2026-06-25)
+
+### Features
+
+* **actions:** add withPayload to async builder and remove payload! non-null assertions ([5a2d037](https://github.com/chrismichaelps/tagix/commit/5a2d0375349be0f5c908913034be89399667025c)), closes [#60](https://github.com/chrismichaelps/tagix/issues/60)
+* **actions:** pass dispatch context to async onSuccess/onError ([aa327a7](https://github.com/chrismichaelps/tagix/commit/aa327a7d6339f6e8fb4af0861383d9a10789c1d3)), closes [#73](https://github.com/chrismichaelps/tagix/issues/73)
+* **core:** add selector subscriptions on the store ([471fbec](https://github.com/chrismichaelps/tagix/commit/471fbec26c9f46f6e80b7f87297712ccb11d95cd)), closes [#89](https://github.com/chrismichaelps/tagix/issues/89)
+* **core:** add store.reset() to restore initial state ([1621ef3](https://github.com/chrismichaelps/tagix/commit/1621ef3394a0b71ec768e7d11a9d56ccdf1af9f3)), closes [#87](https://github.com/chrismichaelps/tagix/issues/87)
+* **data:** add Effect-inspired Brand nominal types ([ca9894f](https://github.com/chrismichaelps/tagix/commit/ca9894f4f920de53ae20b38463c0e78633bc9bc9)), closes [#56](https://github.com/chrismichaelps/tagix/issues/56)
+* **data:** add Effect-inspired Order comparator module ([2639ffc](https://github.com/chrismichaelps/tagix/commit/2639ffc9f7cf75e2cb650dfe13c65bcf3e6604e6)), closes [#43](https://github.com/chrismichaelps/tagix/issues/43)
+* **data:** add fromPredicate and all to Option and Either ([cb8dc31](https://github.com/chrismichaelps/tagix/commit/cb8dc317d1a2f633754981e5bf874bfa02fc28c7)), closes [#51](https://github.com/chrismichaelps/tagix/issues/51)
+* **data:** pipeable Option combinators + narrowing hasTag guard ([eb8641f](https://github.com/chrismichaelps/tagix/commit/eb8641f5efd1f596e52f1f8e7d84b0eba5b77fd3)), closes [#49](https://github.com/chrismichaelps/tagix/issues/49)
+* **middleware:** add Redux DevTools integration ([03b16be](https://github.com/chrismichaelps/tagix/commit/03b16be3053b07dd64e6076b4da54f8e28637b8f)), closes [#85](https://github.com/chrismichaelps/tagix/issues/85)
+* **persist:** add persist helper for storage hydration and sync ([96bed5d](https://github.com/chrismichaelps/tagix/commit/96bed5d103a88d783eb3b276a069b3ea2c2cb5a2)), closes [#83](https://github.com/chrismichaelps/tagix/issues/83)
+* **react:** add useSyncExternalStore-based reactive hooks ([f1e1a60](https://github.com/chrismichaelps/tagix/commit/f1e1a60897ca9c73acad1c2803c9ef24331ae647)), closes [#58](https://github.com/chrismichaelps/tagix/issues/58)
+* **selectors:** add reselect-style createSelector ([6b94c3e](https://github.com/chrismichaelps/tagix/commit/6b94c3e0892e2d91cb0a69367ef3ff81f143feae)), closes [#79](https://github.com/chrismichaelps/tagix/issues/79)
+* **selectors:** type-safe function accessors and composable Lens optics ([2bbb82c](https://github.com/chrismichaelps/tagix/commit/2bbb82cef5490d2e3b137d638cb5bcc99c40e90b)), closes [#41](https://github.com/chrismichaelps/tagix/issues/41)
+* **slice:** add bindActions for bound dispatchers over existing actions ([4bee911](https://github.com/chrismichaelps/tagix/commit/4bee911e59c9015965efb4711658c8b83fd2b548)), closes [#81](https://github.com/chrismichaelps/tagix/issues/81)
+* **slice:** add createSlice for colocated, low-boilerplate stores ([da39d86](https://github.com/chrismichaelps/tagix/commit/da39d861962a5d6db57f2faa7b5c141cd61d9a36)), closes [#75](https://github.com/chrismichaelps/tagix/issues/75)
+* **slice:** support async actions inline in createSlice ([8c540ed](https://github.com/chrismichaelps/tagix/commit/8c540ed575a07ca29ca1243cf55ff69558b412a1)), closes [#77](https://github.com/chrismichaelps/tagix/issues/77)
+* **vue:** add shallowRef-based reactive composables via onScopeDispose ([6dc9d86](https://github.com/chrismichaelps/tagix/commit/6dc9d86d50f2a3f4d074c770a39f514c5fd7de0c))
+
+### Bug Fixes
+
+* **actions:** infer effect return into onSuccess result (no more unknown) ([a8f4066](https://github.com/chrismichaelps/tagix/commit/a8f406613145456100c6a4cee5db7f5910535021)), closes [#96](https://github.com/chrismichaelps/tagix/issues/96)
+* **build:** keep adapter frameworks external to prevent 2 MB bundle bloat ([f67f0ab](https://github.com/chrismichaelps/tagix/commit/f67f0abc72502548898188a153e4690446fe060d))
+* **context:** dedup DerivedContext.select callbacks by selected value ([1826fa6](https://github.com/chrismichaelps/tagix/commit/1826fa6b80dd02ef44b69d9bfcdbeacdc5aedb2f)), closes [#45](https://github.com/chrismichaelps/tagix/issues/45)
+* **context:** dedup undefined selections with a sentinel instead of overloading undefined ([d68e9cf](https://github.com/chrismichaelps/tagix/commit/d68e9cf9f7b6c94c4f42465e223d280b21a81024))
+* **context:** release store subscription on dispose and propagate services ([a2c38c5](https://github.com/chrismichaelps/tagix/commit/a2c38c539969a452023850d1476c1eb8fca8108e))
+* **core:** prevent unbounded re-entrancy in subscriber notification ([1f3e088](https://github.com/chrismichaelps/tagix/commit/1f3e0886cab14833c40c74bd84377d9a15be5bf4))
+* **docs:** clarify non-reactive nature of core hooks, fix maxRetries JSDoc ([202e193](https://github.com/chrismichaelps/tagix/commit/202e19307be0f8e30b81a2a6b6484000060d75be))
+* **error:** attach a numeric code to every tagged error ([5bc594d](https://github.com/chrismichaelps/tagix/commit/5bc594de4aca4ad096756a9e19b3ef9f08ea9b14))
+* logger double-log, Order.number NaN ordering, deepEqual cyclic overflow ([a0e3536](https://github.com/chrismichaelps/tagix/commit/a0e35366de2c2a26ea1d57e88aedcb15698ada22)), closes [#47](https://github.com/chrismichaelps/tagix/issues/47)
+* **selectors:** deep-compare Date/RegExp/Map/Set/TypedArray in memoize ([953de89](https://github.com/chrismichaelps/tagix/commit/953de89e6d8f0cb0fb9455598efce6bb566a648e))
+* **selectors:** preserve property type in pluck instead of returning unknown ([137ef5e](https://github.com/chrismichaelps/tagix/commit/137ef5ef0829c29b5d30aba60b913d824d02143c)), closes [#39](https://github.com/chrismichaelps/tagix/issues/39)
+* **store:** copy middlewares before reversing to avoid mutating caller array ([9574041](https://github.com/chrismichaelps/tagix/commit/95740411ef0771454d800f3f67037276d2634543)), closes [#33](https://github.com/chrismichaelps/tagix/issues/33)
+* **store:** harden dispatch error handling and async state validation ([5198520](https://github.com/chrismichaelps/tagix/commit/5198520e02a76414af472b5214151ab49509eb0e))
+* **store:** preserve source store config when forking ([6c99b44](https://github.com/chrismichaelps/tagix/commit/6c99b4405780a78e4cb7bdd4bbb77c65d5cae363))
+* **store:** run async effects once by default; make auto-retry opt-in ([1d1f985](https://github.com/chrismichaelps/tagix/commit/1d1f985c41abff21d92c862ccccd1a45180474d6)), closes [#32](https://github.com/chrismichaelps/tagix/issues/32)
+* **types:** bound RelaxedState to known variant keys, closing the any hole ([ff2e134](https://github.com/chrismichaelps/tagix/commit/ff2e1341e9d12c6408159173ef9341e85d8a5c1e))
+
+### Documentation
+
+* add Functional Utilities guide (Option, Either, pipe/flow, predicates) ([5f4afc5](https://github.com/chrismichaelps/tagix/commit/5f4afc58414b8773a92775de2923fe1ddd96353f)), closes [#53](https://github.com/chrismichaelps/tagix/issues/53)
+* align quick-start, core, architecture, state, async, machines, selectors with shipped API ([21eea2d](https://github.com/chrismichaelps/tagix/commit/21eea2d5a7b0770b28a569ac4d7159d9462875d8))
+* align remaining guides with shipped API and clarify variant schemas ([814e486](https://github.com/chrismichaelps/tagix/commit/814e486f7d75448338de6b61dadb9f245fa4f1e9))
+* fix services examples, hook signatures, and createStore arity in middleware/context ([1c8dd48](https://github.com/chrismichaelps/tagix/commit/1c8dd48bd500531ee96167a8ccd41a38803e79b6))
+* **services:** mark the React hooks example as a tsx fence ([52e9244](https://github.com/chrismichaelps/tagix/commit/52e924448ab3de9ecd7610d1edc69a26afd19c61))
+
+### Code Refactoring
+
+* **config:** derive tsup/vitest from single adapter manifest ([3eceddd](https://github.com/chrismichaelps/tagix/commit/3ecedddecca6a9bc631cdc6b415a0d15d25e8a5f))
+* **constants:** replace 'window as any' with typed WindowWithDevTools ([54a4c62](https://github.com/chrismichaelps/tagix/commit/54a4c6234c4472099176e6b5ef91ea8c8fad0698))
+* remove unnecessary type casts where TypeScript infers correctly ([7915b2d](https://github.com/chrismichaelps/tagix/commit/7915b2d3fc507c196279572c2b3996f94baa9fdd))
+
+### Tests
+
+* **config:** exclude vue tests from node project until vue deps installed ([297d693](https://github.com/chrismichaelps/tagix/commit/297d693cfd6df3f5d3cf63955758fee24fe9dc6a))
+* **derived:** add coverage for derived store behavior ([ecb60a6](https://github.com/chrismichaelps/tagix/commit/ecb60a6af31ed7583ab225490908a2b3c408ad80))
+* real-scenario integration suite + mutation-driven dedup test ([e99af00](https://github.com/chrismichaelps/tagix/commit/e99af00167c262ef1b00b5feb875583a290fdfee)), closes [#46](https://github.com/chrismichaelps/tagix/issues/46) [#92](https://github.com/chrismichaelps/tagix/issues/92)
+* real-world integration suite against live HTTP API ([0bce21e](https://github.com/chrismichaelps/tagix/commit/0bce21e9af9afc87a795b7707414c3c078516f49)), closes [#94](https://github.com/chrismichaelps/tagix/issues/94)
+* **store:** cover retry default, middleware immutability, and async flow ([876bf1e](https://github.com/chrismichaelps/tagix/commit/876bf1e93891e0eda9f94109826c5c3f3870c803))
+
 ## [1.2.2](https://github.com/chrismichaelps/tagix/compare/v1.2.1...v1.2.2) (2026-02-24)
 
 ### Bug Fixes
