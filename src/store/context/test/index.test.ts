@@ -120,6 +120,35 @@ describe("TagixContext", () => {
       expect(tag).toBe("Ready");
     });
 
+    it("should not fire the callback when the selected value is unchanged", () => {
+      const store = createStore(CounterState.Ready({ value: 100 }), CounterState);
+      const context = createContext(store);
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // Selected value (value > 0) stays `true` across these increments.
+      context.select(
+        (state) => getValue(state) > 0,
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1); // initial synchronous call
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      expect(calls).toBe(1); // unchanged boolean → no extra fires (dedup)
+    });
+
     it("deduplicates consecutive undefined selections from an optional field", () => {
       const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
       const context = createContext(store);
