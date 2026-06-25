@@ -42,6 +42,60 @@ export const fromNullable = <A, E>(
 ): Either<E, NonNullable<A>> =>
   value == null ? left(onNullable()) : right(value as NonNullable<A>);
 
+/**
+ * Builds an `Either` from a value, a predicate, and an `onFalse` error factory:
+ * `Right(value)` when the predicate holds, otherwise `Left(onFalse(value))`.
+ * Dual: data-first `fromPredicate(value, pred, onFalse)` or data-last
+ * `fromPredicate(pred, onFalse)`.
+ * @example
+ * ```ts
+ * fromPredicate(4, (n) => n > 0, () => "not positive"); // Right(4)
+ * pipe(-1, fromPredicate((n: number) => n > 0, () => "not positive")); // Left("not positive")
+ * ```
+ */
+export function fromPredicate<A, E>(
+  predicate: (a: A) => boolean,
+  onFalse: (a: A) => E
+): (a: A) => Either<E, A>;
+export function fromPredicate<A, E>(
+  a: A,
+  predicate: (a: A) => boolean,
+  onFalse: (a: A) => E
+): Either<E, A>;
+export function fromPredicate<A, E>(
+  aOrPredicate: A | ((a: A) => boolean),
+  predicateOrOnFalse: ((a: A) => boolean) | ((a: A) => E),
+  onFalse?: (a: A) => E
+): Either<E, A> | ((a: A) => Either<E, A>) {
+  if (onFalse === undefined) {
+    const predicate = aOrPredicate as (a: A) => boolean;
+    const onFalseFn = predicateOrOnFalse as (a: A) => E;
+    return (a: A) => (predicate(a) ? right(a) : left(onFalseFn(a)));
+  }
+  const a = aOrPredicate as A;
+  const predicate = predicateOrOnFalse as (a: A) => boolean;
+  return predicate(a) ? right(a) : left(onFalse(a));
+}
+
+/**
+ * Combines an iterable of `Either`s into a single `Either` of an array.
+ * Returns `Right` of all values when every element is `Right`, otherwise the
+ * first `Left` encountered (short-circuiting).
+ * @example
+ * ```ts
+ * all([right(1), right(2)]);       // Right([1, 2])
+ * all([right(1), left("boom")]);   // Left("boom")
+ * ```
+ */
+export function all<E, A>(eithers: Iterable<Either<E, A>>): Either<E, A[]> {
+  const values: A[] = [];
+  for (const either of eithers) {
+    if (isLeft(either)) return either;
+    values.push(either.right);
+  }
+  return right(values);
+}
+
 export const tryCatch = <A, E>(tryFn: () => A, onThrow: (error: unknown) => E): Either<E, A> => {
   try {
     return right(tryFn());

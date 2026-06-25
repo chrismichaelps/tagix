@@ -20,10 +20,10 @@ const UserState = taggedEnum({
   Unauthenticated: {},
   Authenticating: { loading: true },
   Authenticated: {
-    user: { id: number; email: string; name: string },
-    token: string,
+    user: { id: 0, email: "", name: "" },
+    token: "",
   },
-  AuthError: { message: string },
+  AuthError: { message: "" },
 });
 ```
 
@@ -56,14 +56,30 @@ type UserStateType = typeof UserState.State;
 
 ## Empty vs Populated Variants
 
-Variants can have properties or be empty:
+Every variant is defined as an **object schema of sample values**. A variant may be empty or carry properties:
 
 ```ts
 const LoadingState = taggedEnum({
-  Idle: {}, // No properties
-  Loading: { progress: number }, // With properties
+  Idle: {}, // Empty marker variant — no data
+  Loading: { progress: 0 }, // Carries a number
 });
 ```
+
+An empty variant uses `{}`; this is the marker for "this state holds no data," not a missing default. You still construct it with an argument: `LoadingState.Idle({})`.
+
+To attach a boolean (or any value) to a variant, declare it as a **property**, not as the variant value itself:
+
+```ts
+const AuthState = taggedEnum({
+  Unauthenticated: {}, // marker
+  Authenticating: { loading: true }, // property `loading` inferred as boolean
+});
+
+AuthState.Authenticating({ loading: true }); // ok
+AuthState.Authenticating({ loading: false }); // also ok — `loading` is boolean
+```
+
+A variant value must always be an object schema. You cannot make the variant itself a primitive (`Loading: true` is a type error) — wrap the value in a property instead (`Loading: { value: true }`).
 
 ## Nested Structures
 
@@ -75,12 +91,12 @@ const AppState = taggedEnum({
     user: {
       profile: {
         settings: {
-          theme: "light" | "dark";
-          notifications: boolean;
-        };
-      };
-    };
-    posts: Array<{ id: number; title: string }>;
+          theme: "light" as "light" | "dark",
+          notifications: true,
+        },
+      },
+    },
+    posts: [] as Array<{ id: number; title: string }>,
   },
 });
 ```
@@ -113,11 +129,9 @@ function processUser(state: UserStateType) {
 
 ## Extract Helper
 
-Use `Extract` to get specific variant types:
+Use TypeScript's `Extract` utility to get specific variant types:
 
 ```ts
-import { Extract } from "tagix";
-
 type AuthenticatedState = Extract<UserStateType, { _tag: "Authenticated" }>;
 
 // AuthenticatedState is:
@@ -137,18 +151,20 @@ Create separate state definitions for different domains:
 ```ts
 // User state
 const UserState = taggedEnum({
-  /* ... */
+  Idle: {},
+  Loaded: { user: null as { id: string; name: string } | null },
 });
 
 // Posts state
 const PostsState = taggedEnum({
-  /* ... */
+  Idle: {},
+  Loaded: { posts: [] as Array<{ id: string; title: string }> },
 });
 
 // Combine in a root state
 const AppState = taggedEnum({
-  User: UserState,
-  Posts: PostsState,
+  User: { state: UserState.Idle({}) },
+  Posts: { state: PostsState.Idle({}) },
 });
 ```
 
@@ -160,9 +176,9 @@ Avoid deeply nested structures when flat alternatives work:
 // Prefer
 const FormState = taggedEnum({
   Idle: {},
-  Submitting: { values: Record<string, unknown> },
-  Success: { data: unknown },
-  Error: { errors: Record<string, string> },
+  Submitting: { values: {} as Record<string, unknown> },
+  Success: { data: null as unknown },
+  Error: { errors: {} as Record<string, string> },
 });
 
 // Over deeply nested
@@ -170,7 +186,7 @@ const DeepFormState = taggedEnum({
   Form: {
     Status: {
       Idle: {},
-      Submitting: { values: Record<string, unknown> },
+      Submitting: { values: {} as Record<string, unknown> },
       // ... more nesting
     },
   },
@@ -187,7 +203,7 @@ const StatusState = taggedEnum({
   Pending: {},
   Processing: {},
   Completed: {},
-  Failed: { reason: string },
+  Failed: { reason: "" },
 });
 
 // Avoid

@@ -1,14 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
 import {
   select,
   pluck,
   memoize,
   combineSelectors,
+  createSelector,
   patch,
   getOrDefault,
   taggedEnum,
   createStore,
 } from "../../index";
+import { deepEqual } from "../index";
 
 const CounterState = taggedEnum({
   Idle: { value: 0 },
@@ -47,6 +49,55 @@ describe("pluck()", () => {
 
     expect(getValue(state)).toBe(42);
     expect(getTag(state)).toBe("Ready");
+  });
+});
+
+describe("select() with function accessor", () => {
+  it("should read a value via an accessor function", () => {
+    const obj = { value: 10, name: "test" };
+    expect(select(obj, (s) => s.value)).toBe(10);
+    expect(select(obj, (s) => s.name)).toBe("test");
+  });
+
+  it("should read nested values without dot-path strings", () => {
+    const obj = { user: { profile: { name: "Chris" } } };
+    expect(select(obj, (s) => s.user.profile.name)).toBe("Chris");
+  });
+
+  it("should return undefined when traversal hits a nullish value", () => {
+    const obj = { user: null as { name: string } | null };
+    expect(select(obj, (s) => s.user!.name)).toBeUndefined();
+  });
+});
+
+describe("pluck<T>() curried accessor", () => {
+  interface Obj {
+    user: { name: string; age: number };
+  }
+
+  it("should build a reusable selector, inferring the accessor parameter", () => {
+    const obj: Obj = { user: { name: "Chris", age: 30 } };
+    const getName = pluck<Obj>()((s) => s.user.name);
+    const getAge = pluck<Obj>()((s) => s.user.age);
+
+    expect(getName(obj)).toBe("Chris");
+    expect(getAge(obj)).toBe(30);
+  });
+
+  it("should return undefined when traversal hits a nullish value", () => {
+    interface Nullable {
+      user: { name: string } | null;
+    }
+    const getName = pluck<Nullable>()((s) => s.user!.name);
+    expect(getName({ user: null })).toBeUndefined();
+    expect(getName({ user: { name: "Ada" } })).toBe("Ada");
+  });
+
+  it("should work with tagged enum state", () => {
+    type Ready = ReturnType<typeof CounterState.Ready>;
+    const state = CounterState.Ready({ value: 42 });
+    const getValue = pluck<Ready>()((s) => s.value);
+    expect(getValue(state)).toBe(42);
   });
 });
 
@@ -231,5 +282,98 @@ describe("Complete Selector Example", () => {
 
     expect(getDisplayName({ displayName: "JD", username: "john" })).toBe("JD");
     expect(getDisplayName({ username: "john" })).toBe("john");
+  });
+});
+
+describe("deepEqual() with cyclic references", () => {
+  it("does not overflow the stack on self-referential objects", () => {
+    const a: Record<string, unknown> = { value: 1 };
+    a.self = a;
+    const b: Record<string, unknown> = { value: 1 };
+    b.self = b;
+
+    expect(deepEqual(a, b)).toBe(true);
+  });
+
+  it("detects differences in cyclic structures", () => {
+    const a: Record<string, unknown> = { value: 1 };
+    a.self = a;
+    const b: Record<string, unknown> = { value: 2 };
+    b.self = b;
+
+    expect(deepEqual(a, b)).toBe(false);
+  });
+
+  it("handles mutually-referential objects without overflow", () => {
+    const a1: Record<string, unknown> = { id: "a" };
+    const a2: Record<string, unknown> = { id: "b" };
+    a1.ref = a2;
+    a2.ref = a1;
+
+    const b1: Record<string, unknown> = { id: "a" };
+    const b2: Record<string, unknown> = { id: "b" };
+    b1.ref = b2;
+    b2.ref = b1;
+
+    expect(deepEqual(a1, b1)).toBe(true);
+  });
+
+  it("memoize survives a cyclic input", () => {
+    const input: Record<string, unknown> = { value: 5 };
+    input.self = input;
+    const selector = memoize((i: { value: number }) => i.value * 2);
+    expect(selector(input as unknown as { value: number })).toBe(10);
+    expect(selector(input as unknown as { value: number })).toBe(10);
+  });
+});
+
+describe("createSelector()", () => {
+  interface State {
+    items: number[];
+    taxRate: number;
+    label: string;
+  }
+
+  it("computes from input selectors", () => {
+    const selectTotal = createSelector(
+      (s: State) => s.items,
+      (s: State) => s.taxRate,
+      (items, taxRate) => items.reduce((a, b) => a + b, 0) * (1 + taxRate)
+    );
+    expect(selectTotal({ items: [1, 2, 3], taxRate: 0.1, label: "x" })).toBeCloseTo(6.6);
+  });
+
+  it("recomputes only when a relevant input changes by reference", () => {
+    let runs = 0;
+    const items = [1, 2, 3];
+    const selectSum = createSelector(
+      (s: State) => s.items,
+      (got) => {
+        runs++;
+        return got.reduce((a, b) => a + b, 0);
+      }
+    );
+
+    const s1: State = { items, taxRate: 0.1, label: "a" };
+    expect(selectSum(s1)).toBe(6);
+    expect(runs).toBe(1);
+
+    // Unrelated field changed, but `items` is the same reference → cached.
+    const s2: State = { items, taxRate: 0.2, label: "b" };
+    expect(selectSum(s2)).toBe(6);
+    expect(runs).toBe(1);
+
+    // `items` reference changed → recompute.
+    const s3: State = { items: [10, 20], taxRate: 0.2, label: "b" };
+    expect(selectSum(s3)).toBe(30);
+    expect(runs).toBe(2);
+  });
+
+  it("infers the result type", () => {
+    const selectLen = createSelector(
+      (s: State) => s.label,
+      (label) => label.length
+    );
+    expectTypeOf(selectLen).toEqualTypeOf<(state: State) => number>();
   });
 });

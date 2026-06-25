@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   createStore,
   createAction,
@@ -362,5 +362,40 @@ describe("Middleware Control Flow", () => {
 
     expect(receivedPayloads).toEqual([10]);
     expect((store.stateValue as Extract<TestStateType, { value: number }>).value).toBe(10);
+  });
+
+  it("logs the action title once via console.group in non-collapsed mode", () => {
+    const groupSpy = vi.spyOn(console, "group").mockImplementation(() => {});
+    const groupEndSpy = vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState, {
+        middlewares: [
+          createLoggerMiddleware({ collapsed: false, duration: false, timestamp: false }),
+        ],
+      });
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const st = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: st.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+      store.dispatch("tagix/action/Increment", { amount: 1 });
+
+      const titleRe = /^%caction /; // title line, distinct from the "%c action %c" detail line
+      const inGroup = groupSpy.mock.calls.filter(
+        (c) => typeof c[0] === "string" && titleRe.test(c[0])
+      );
+      const inLog = logSpy.mock.calls.filter((c) => typeof c[0] === "string" && titleRe.test(c[0]));
+
+      expect(inGroup).toHaveLength(1);
+      expect(inLog).toHaveLength(0); // title must not also be logged (no double-log)
+    } finally {
+      groupSpy.mockRestore();
+      groupEndSpy.mockRestore();
+      logSpy.mockRestore();
+    }
   });
 });

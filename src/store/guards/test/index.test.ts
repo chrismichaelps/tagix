@@ -135,6 +135,19 @@ describe("hasTag()", () => {
     expect(hasTag(CounterState.Idle({ value: 0 }), "Idle")).toBe(true);
     expect(hasTag(CounterState.Loading({}), "Loading")).toBe(true);
   });
+
+  it("narrows the state type when true", () => {
+    const state = CounterState.Ready({ value: 10 }) as CounterStateType;
+
+    if (hasTag(state, "Ready")) {
+      // Type-level: `state` is narrowed to the Ready variant, so `.value` is
+      // accessible without a cast. This line failing to compile is the regression.
+      const value: number = state.value;
+      expect(value).toBe(10);
+    } else {
+      throw new Error("expected Ready");
+    }
+  });
 });
 
 describe("Complete Guard Example", () => {

@@ -28,6 +28,8 @@ export * from "./error-names";
 export * from "./error";
 export * from "./core";
 export * from "./actions";
+export * from "./slice";
+export * from "./persist";
 export * from "./guards";
 export * from "./match";
 export * from "./context";
@@ -39,10 +41,17 @@ export {
   select,
   pluck,
   combineSelectors,
+  createSelector,
   memoize,
   getOrDefault,
 } from "./selectors";
 export { createLoggerMiddleware } from "./middlewares/logger";
+export {
+  createDevtoolsMiddleware,
+  type DevtoolsConnection,
+  type DevtoolsConnector,
+  type DevtoolsOptions,
+} from "./middlewares/devtools";
 export { deriveStore, DerivedStore } from "./derived";
 export type { DerivedStoreConfig } from "./derived";
 

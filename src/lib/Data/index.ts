@@ -16,6 +16,8 @@ export {
   isLeft,
   isRight,
   fromNullable as fromNullableEither,
+  fromPredicate as fromPredicateEither,
+  all as allEither,
   tryCatch,
   tryCatchAsync,
   match as matchEither,
@@ -47,6 +49,8 @@ export {
   isNone,
   isSome,
   fromNullable as fromNullableOption,
+  fromPredicate as fromPredicateOption,
+  all as allOption,
   getOrNull,
   getOrUndefined,
   getOrElse as getOrElseOption,
@@ -60,6 +64,10 @@ export {
 
 export * from "./functions";
 export * from "./predicate";
+export { type Lens, lens, prop } from "./lens";
+export * as Order from "./order";
+export { type Ordering } from "./order";
+export * as Brand from "./brand";
 
 export { type TaggedError as TaggedErrorType, TaggedError, isTaggedError } from "./tagged-error";
 

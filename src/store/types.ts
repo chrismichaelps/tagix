@@ -33,7 +33,7 @@ export interface StoreConfig<S extends { readonly _tag: string }> {
   readonly strict?: boolean;
   /** Maximum number of errors to retain in history. @default 50 */
   readonly maxErrorHistory?: number;
-  /** Maximum number of retries for failed async actions. @default 3 */
+  /** Maximum number of retries for failed async actions. `0` runs the effect exactly once (failures go straight to `onError`). Set `> 0` to retry; note non-idempotent effects (POST/create/delete) may then duplicate side effects. @default 0 */
   readonly maxRetries?: number;
   /** Middleware chain for intercepting dispatches. */
   readonly middlewares?: Array<Middleware<S>>;
@@ -70,10 +70,10 @@ export interface AsyncAction<TPayload = never, TState = never, TError = never> {
   readonly state: (currentState: TState) => TState;
   /** Side effect to execute (awaits completion). @param payload - Payload from dispatch. @param context - TagixContext if provided. @returns Effect result. */
   readonly effect: (payload: TPayload, context: unknown) => Promise<unknown>;
-  /** Success handler (runs after effect resolves). */
-  readonly onSuccess: (currentState: TState, result: unknown) => TState;
-  /** Error handler (runs if effect rejects or throws). */
-  readonly onError: (currentState: TState, error: TError) => TState;
+  /** Success handler (runs after effect resolves). Receives the dispatch context (if any) as a third argument. */
+  readonly onSuccess: (currentState: TState, result: unknown, context: unknown) => TState;
+  /** Error handler (runs if effect rejects or throws). Receives the dispatch context (if any) as a third argument. */
+  readonly onError: (currentState: TState, error: TError, context: unknown) => TState;
 }
 
 /**

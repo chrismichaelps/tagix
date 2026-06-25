@@ -93,13 +93,10 @@ export function createLoggerMiddleware(options: LoggerOptions = {}) {
           if (isNotNullish(console.groupCollapsed)) {
             console.groupCollapsed(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
           }
+        } else if (isNotNullish(console.group)) {
+          console.group(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
         } else {
-          const groupResult = isNotNullish(console.group)
-            ? console.group(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;")
-            : undefined;
-          if (groupResult === undefined) {
-            log(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
-          }
+          log(`%c${actionTitle}`, "color: #9E9E9E; font-weight: bold;");
         }
 
         log(

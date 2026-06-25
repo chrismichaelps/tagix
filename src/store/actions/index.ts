@@ -27,11 +27,31 @@ import type { TagixContext } from "../context";
 import { ACTION_TYPE_PREFIX } from "../constants";
 
 /**
- * Relaxed state type for action handlers that allows accessing any property.
- * The `& Record<string, any>` intersection allows accessing variant-specific properties
- * without explicit type narrowing, while the base type ensures _tag is present.
+ * Union of every key present on any variant of the state discriminated union.
+ * Uses a distributive conditional so a key need only exist on one variant
+ * (unlike `keyof S`, which is the intersection of keys present on all members).
  */
-type RelaxedState<T extends { readonly _tag: string }> = T & Record<string, any>;
+type AllVariantKeys<S> = S extends any ? keyof S : never;
+
+/**
+ * The type of a single field across every variant that declares it, unioned.
+ * Distributive over `S`: for each member that has key `K`, contribute its type.
+ */
+type VariantField<S, K extends PropertyKey> = S extends { [P in K]: infer T } ? T : never;
+
+/**
+ * State parameter type for action handlers.
+ *
+ * Intersects the real discriminated union with a map of every variant field,
+ * keyed precisely. This keeps two ergonomics the original code relied on —
+ * spreading (`{ ...s, _tag: "X" }`) and accessing a field without narrowing —
+ * while closing the `any` hole: typos (`s.usr`) now fail to compile, and
+ * autocomplete only offers real fields. Each field carries its actual type
+ * (e.g. `value: number`), not `any`.
+ */
+type RelaxedState<T extends { readonly _tag: string }> = T & {
+  [K in AllVariantKeys<T>]: VariantField<T, K>;
+};
 
 interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
   withPayload(payload: TPayload): ActionBuilder<TPayload, TState>;
@@ -48,18 +68,27 @@ interface ActionBuilder<TPayload, TState extends { readonly _tag: string }> {
 }
 
 interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string }, TEffect> {
+  withPayload(payload: TPayload): AsyncActionBuilder<TPayload, TState, TEffect>;
   state(
     stateFn: (currentState: RelaxedState<TState>) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
-  effect(
-    effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TEffect>
-  ): AsyncActionBuilder<TPayload, TState, TEffect>;
+  effect<TNewEffect>(
+    effectFn: (payload: TPayload, context: TagixContext<TState>) => Promise<TNewEffect>
+  ): AsyncActionBuilder<TPayload, TState, TNewEffect>;
   onSuccess(
-    handler: (currentState: RelaxedState<TState>, result: TEffect) => TState
+    handler: (
+      currentState: RelaxedState<TState>,
+      result: TEffect,
+      context: TagixContext<TState>
+    ) => TState
   ): AsyncActionBuilder<TPayload, TState, TEffect>;
   onError(
-    handler: (currentState: RelaxedState<TState>, error: unknown) => TState
-  ): AsyncAction<TPayload, TState, TEffect>;
+    handler: (
+      currentState: RelaxedState<TState>,
+      error: unknown,
+      context: TagixContext<TState>
+    ) => TState
+  ): AsyncAction<TPayload, TState, unknown>;
 }
 
 /**
@@ -68,9 +97,9 @@ interface AsyncActionBuilder<TPayload, TState extends { readonly _tag: string },
  * @returns Action builder with chainable methods.
  * @example
  * ```ts
- * const increment = createAction("Increment")
+ * const increment = createAction<{ amount: number }, CounterState>("Increment")
  *   .withPayload({ amount: 1 })
- *   .withState((s, p) => ({ count: s.count + p.amount }));
+ *   .withState((s, p) => ({ ...s, count: s.count + p.amount }));
  * ```
  */
 export function createAction<TPayload, S extends { readonly _tag: string }>(
@@ -80,9 +109,9 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
   type: string
 ): ActionBuilder<TPayload, S> {
   let payload: TPayload | undefined;
-  let handler: ((state: S, payload: TPayload) => S) | undefined;
+  let handler: ((state: RelaxedState<S>, payload: TPayload) => S) | undefined;
   let handlerWithContext:
-    | ((state: S, payload: TPayload, context: TagixContext<S>) => S)
+    | ((state: RelaxedState<S>, payload: TPayload, context: TagixContext<S>) => S)
     | undefined;
 
   return {
@@ -94,7 +123,7 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
       handler = h;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         handler: handler!,
       } as Action<TPayload, S>;
     },
@@ -102,12 +131,12 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
       handlerWithContext = h;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         handler: () => {
           throw new Error("Handler with context must be called via context");
         },
         handlerWithContext: handlerWithContext!,
-      } as Action<TPayload, S>;
+      } as unknown as Action<TPayload, S>;
     },
   };
 }
@@ -120,16 +149,18 @@ export function createAction<TPayload = never, S extends { readonly _tag: string
  * @param type - Unique action identifier.
  * @returns Async action builder with chainable methods.
  * @remarks Builder pattern: call `state`, `effect`, `onSuccess`, then `onError` to complete.
+ * `withPayload` is optional — when omitted the payload defaults to `undefined`.
  * @example
  * ```ts
  * const fetchUser = createAsyncAction<{ id: string }, UserState, User>("FetchUser")
+ *   .withPayload({ id: "" })
  *   .state(s => ({ ...s, loading: true }))
  *   .effect(p => api.getUser(p.id))
  *   .onSuccess((s, user) => ({ ...s, user, loading: false }))
  *   .onError((s, err) => ({ ...s, error: err, loading: false }));
  * ```
  */
-export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect>(
+export function createAsyncAction<TPayload, S extends { readonly _tag: string }, TEffect = unknown>(
   type: string
 ): AsyncActionBuilder<TPayload, S, TEffect>;
 export function createAsyncAction<
@@ -137,38 +168,54 @@ export function createAsyncAction<
   S extends { readonly _tag: string } = never,
   TEffect = unknown,
 >(type: string): AsyncActionBuilder<TPayload, S, TEffect> {
-  let stateFn: (currentState: S) => S = (s) => s;
-  let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<TEffect> = async () =>
-    undefined as TEffect;
-  let onSuccessFn: (currentState: S, result: TEffect) => S = (s) => s;
-  let onErrorFn: (currentState: S, error: unknown) => S = (s) => s;
+  // Internal handlers are stored loosely typed; the public builder type tracks
+  // the precise TEffect (inferred from `effect`) and feeds it to `onSuccess`.
+  let stateFn: (currentState: RelaxedState<S>) => S = (s) => s;
+  let effectFn: (payload: TPayload, context: TagixContext<S>) => Promise<unknown> = async () =>
+    undefined;
+  let onSuccessFn: (
+    currentState: RelaxedState<S>,
+    result: unknown,
+    context: TagixContext<S>
+  ) => S = (s) => s;
+  let onErrorFn: (currentState: RelaxedState<S>, error: unknown, context: TagixContext<S>) => S = (
+    s
+  ) => s;
   let payload: TPayload | undefined;
 
-  return {
+  const builder: AsyncActionBuilder<TPayload, S, TEffect> = {
+    withPayload(p): AsyncActionBuilder<TPayload, S, TEffect> {
+      payload = p;
+      return builder;
+    },
     state(fn): AsyncActionBuilder<TPayload, S, TEffect> {
       stateFn = fn;
-      return this;
+      return builder;
     },
-    effect(fn): AsyncActionBuilder<TPayload, S, TEffect> {
-      effectFn = fn;
-      return this;
+    effect<TNewEffect>(
+      fn: (payload: TPayload, context: TagixContext<S>) => Promise<TNewEffect>
+    ): AsyncActionBuilder<TPayload, S, TNewEffect> {
+      effectFn = fn as typeof effectFn;
+      return builder as unknown as AsyncActionBuilder<TPayload, S, TNewEffect>;
     },
     onSuccess(fn): AsyncActionBuilder<TPayload, S, TEffect> {
-      onSuccessFn = fn;
-      return this;
+      onSuccessFn = fn as typeof onSuccessFn;
+      return builder;
     },
-    onError(fn): AsyncAction<TPayload, S, TEffect> {
-      onErrorFn = fn;
+    onError(fn): AsyncAction<TPayload, S, unknown> {
+      onErrorFn = fn as typeof onErrorFn;
       return {
         type: `${ACTION_TYPE_PREFIX}${type}`,
-        payload: payload!,
+        payload: payload as TPayload,
         state: stateFn,
         effect: effectFn,
         onSuccess: onSuccessFn,
         onError: onErrorFn,
-      } as AsyncAction<TPayload, S, TEffect>;
+      } as AsyncAction<TPayload, S, unknown>;
     },
   };
+
+  return builder;
 }
 
 export { createActionGroup } from "./group";

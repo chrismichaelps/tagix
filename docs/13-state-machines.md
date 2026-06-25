@@ -16,11 +16,13 @@ Tagix state definitions naturally model finite state machines:
 ```ts
 const OrderState = taggedEnum({
   Pending: {},
-  Processing: { startedAt: string },
-  Shipped: { trackingNumber: string; shippedAt: string },
-  Delivered: { deliveredAt: string },
-  Cancelled: { reason: string; cancelledAt: string },
+  Processing: { startedAt: "" },
+  Shipped: { trackingNumber: "", shippedAt: "" },
+  Delivered: { deliveredAt: "" },
+  Cancelled: { reason: "", cancelledAt: "" },
 });
+
+type OrderStateType = typeof OrderState.State;
 ```
 
 ## Valid Transitions
@@ -29,14 +31,14 @@ Define which transitions are allowed:
 
 ```ts
 const OrderActions = {
-  submit: createAction<void, OrderState>("Submit")
+  submit: createAction<void, OrderStateType>("Submit")
     .withPayload(undefined)
     .withState((s) => {
       if (s._tag !== "Pending") return s;
       return OrderState.Processing({ startedAt: new Date().toISOString() });
     }),
 
-  ship: createAction<{ trackingNumber: string }, OrderState>("Ship")
+  ship: createAction<{ trackingNumber: string }, OrderStateType>("Ship")
     .withPayload({ trackingNumber: "" })
     .withState((s, p) => {
       if (s._tag !== "Processing") return s;
@@ -46,14 +48,14 @@ const OrderActions = {
       });
     }),
 
-  deliver: createAction<void, OrderState>("Deliver")
+  deliver: createAction<void, OrderStateType>("Deliver")
     .withPayload(undefined)
     .withState((s) => {
       if (s._tag !== "Shipped") return s;
       return OrderState.Delivered({ deliveredAt: new Date().toISOString() });
     }),
 
-  cancel: createAction<{ reason: string }, OrderState>("Cancel")
+  cancel: createAction<{ reason: string }, OrderStateType>("Cancel")
     .withPayload({ reason: "" })
     .withState((s, p) => {
       if (s._tag === "Delivered") return s; // Cannot cancel delivered
@@ -81,7 +83,7 @@ const canTransition = (from: string, to: string): boolean => {
   return allowed[from]?.includes(to) ?? false;
 };
 
-const safeTransition = createAction<{ to: string }, OrderState>("Transition")
+const safeTransition = createAction<{ to: string }, OrderStateType>("Transition")
   .withPayload({ to: "" })
   .withState((s, p) => {
     if (!canTransition(s._tag, p.to)) return s;
@@ -95,7 +97,7 @@ const safeTransition = createAction<{ to: string }, OrderState>("Transition")
 Validate state integrity:
 
 ```ts
-const validateOrder = (state: OrderState): boolean => {
+const validateOrder = (state: OrderStateType): boolean => {
   switch (state._tag) {
     case "Processing":
       return state.startedAt !== undefined;
@@ -115,12 +117,12 @@ Model complex behaviors:
 const PaymentState = taggedEnum({
   NotStarted: {},
   Processing: {
-    method: "card" | "bank" | "crypto";
-    attempts: number;
+    method: "card" as "card" | "bank" | "crypto",
+    attempts: 0,
   },
-  Completed: { transactionId: string },
-  Failed: { reason: string; retryable: boolean },
-  Refunded: { refundId: string; reason: string },
+  Completed: { transactionId: "" },
+  Failed: { reason: "", retryable: true },
+  Refunded: { refundId: "", reason: "" },
 });
 ```
 
@@ -129,14 +131,22 @@ const PaymentState = taggedEnum({
 Trigger actions during transitions:
 
 ```ts
-const withSideEffects = (action: Action) =>
-  createAction(action.type, action.payload)
-    .withState(action.withState)
-    .withEffect(async (payload) => {
-      // Side effect after state transition
-      await sendAnalytics("action_completed", payload);
-      await notifyWebhook(payload);
-    });
+const submitOrder = createAsyncAction<{ orderId: string }, OrderStateType, void>("SubmitOrder")
+  .state((state) => {
+    if (state._tag !== "Pending") return state;
+    return OrderState.Processing({ startedAt: new Date().toISOString() });
+  })
+  .effect(async (payload) => {
+    await sendAnalytics("order_submitted", payload);
+    await notifyWebhook(payload);
+  })
+  .onSuccess((state) => state)
+  .onError((state, error) =>
+    OrderState.Cancelled({
+      reason: error instanceof Error ? error.message : String(error),
+      cancelledAt: new Date().toISOString(),
+    })
+  );
 ```
 
 ## See Also

@@ -14,10 +14,10 @@ Selectors extract and transform data from your state. They help you compute deri
 The store provides methods for selecting data directly from state.
 
 ```ts
-const store = createStore(CounterState.Idle({ value: 0 }));
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
 
-// Get a specific property from state
-const value = store.select("value");
+// Get a value from state with a type-safe accessor (inferred, autocompleted)
+const value = store.select((s) => s.value);
 
 // Check if the current state matches a tag
 if (store.isInState("Ready")) {
@@ -26,7 +26,7 @@ if (store.isInState("Ready")) {
 
 // Get state wrapped in an Option type
 const readyState = store.getState("Ready");
-if (readyState.isSome) {
+if (isSome(readyState)) {
   // Access readyState.value
 }
 ```
@@ -37,33 +37,39 @@ Tagix provides several selector utilities that work with any state object.
 
 ### select
 
-Extract a single property from an object.
+Extract a value from an object with a **type-safe accessor function**. The accessor parameter is inferred from the object you pass — no annotations, full autocomplete, and nested paths are fully checked. Traversal that hits a nullish value returns `undefined` instead of throwing.
 
 ```ts
 import { select } from "tagix";
 
-const state = { value: 42, name: "test", _tag: "Ready" };
+const state = { value: 42, user: { name: "test" }, _tag: "Ready" };
 
-select(state, "value"); // 42
-select(state, "name"); // "test"
-select(state, "missing"); // undefined
+select(state, (s) => s.value); // 42        (number | undefined)
+select(state, (s) => s.user.name); // "test" (string | undefined) — nested, fully typed
 ```
+
+> **Migration:** the string-key form `select(state, "value")` still works but is `@deprecated`. Prefer the accessor — string keys are not type-checked for nested paths.
 
 ### pluck
 
-Create a curried selector function. This is useful when you want to reuse the same selector across multiple components.
+Create a **reusable, type-safe selector** for a state type. `pluck` is curried by the state type (the same pattern as `lens<T>()`), so once you name the type the accessor parameter and return value are inferred — no `typeof`, no per-parameter annotation.
 
 ```ts
 import { pluck } from "tagix";
 
-const state = { value: 42, _tag: "Ready" };
+interface State {
+  value: number;
+  user: { name: string };
+}
 
-const getValue = pluck("value");
-getValue(state); // 42
+const getValue = pluck<State>()((s) => s.value); // s inferred as State
+getValue(state); // number | undefined
 
-const getTag = pluck("_tag");
-getTag(state); // "Ready"
+const getUserName = pluck<State>()((s) => s.user.name); // nested, fully typed
+getUserName(state); // string | undefined
 ```
+
+> **Migration:** the string-key form `pluck("value")` (and dot-paths like `pluck("user.name")`) still works but is `@deprecated` and returns `unknown` for nested keys.
 
 ### memoize
 
@@ -85,6 +91,24 @@ expensiveSelector(obj); // 10, callCount = 1
 expensiveSelector(obj); // 10 (cached), callCount still 1
 expensiveSelector({ value: 5 }); // 10 (new reference), callCount = 2
 ```
+
+### createSelector
+
+Compose input selectors with a combiner that is memoized per input. The combiner only re-runs when one of its inputs changes (compared by reference) — the reselect / Redux Toolkit `createSelector` pattern. Use it for derived values that are expensive to compute.
+
+```ts
+import { createSelector } from "tagix";
+
+const selectTotal = createSelector(
+  (s: State) => s.items,
+  (s: State) => s.taxRate,
+  (items, taxRate) => items.reduce((sum, i) => sum + i.price, 0) * (1 + taxRate)
+);
+
+selectTotal(state); // recomputes only when `items` or `taxRate` change by reference
+```
+
+Unlike `memoize` (which compares the whole input with deep equality) and `combineSelectors` (which only bundles results into a tuple), `createSelector` recomputes a derived result solely when a relevant input changes — ideal with tagix's immutable state, where unchanged slices keep their reference.
 
 ### combineSelectors
 
@@ -127,6 +151,7 @@ import { patch } from "tagix";
 const base = { value: 0, name: "test", active: true };
 
 const updated = patch(base)({ value: 5, active: false });
+updated.value;
 // { value: 5, name: "test", active: false }
 ```
 
@@ -137,6 +162,7 @@ const base = { x: 1, y: 2, z: 3 };
 
 const update = patch(base);
 const result = update({ x: 10 })({ y: 20 });
+result.value;
 // { x: 10, y: 20, z: 3 }
 ```
 
@@ -150,9 +176,9 @@ import { getOrDefault } from "tagix";
 const getter = (input: { value?: number }) => input.value;
 
 const withDefault = getOrDefault(0);
-withDefault({ value: 5 }); // 5
-withDefault({ value: undefined }); // 0
-withDefault({}); // 0
+withDefault(getter({ value: 5 })); // 5
+withDefault(getter({ value: undefined })); // 0
+withDefault(getter({})); // 0
 ```
 
 ## Complete Example
@@ -163,23 +189,25 @@ import { createStore, select, pluck, memoize, combineSelectors, patch, taggedEnu
 const UserState = taggedEnum({
   Idle: { user: null },
   Loading: {},
-  Ready: { user: { name: string; email: string; age: number } },
-  Error: { message: string },
+  Ready: { user: { name: "", email: "", age: 0 } },
+  Error: { message: "" },
 });
 
 const store = createStore(
   UserState.Ready({
     user: { name: "Chris", email: "chris@test.com", age: 30 },
-  })
+  }),
+  UserState
 );
 
-// Simple selection
-const userName = select(store.stateValue.user, "name");
+// Simple selection with a type-safe accessor
+const ready = store.stateValue as Extract<typeof UserState.State, { _tag: "Ready" }>;
+const userName = select(ready.user, (u) => u.name);
 // "Chris"
 
-// Curried selector
-const getUserName = pluck("user.name");
-const name = getUserName(store.stateValue);
+// Reusable curried selector — type named once, accessor inferred
+const getUserName = pluck<typeof ready>()((s) => s.user.name);
+const name = getUserName(ready);
 // "Chris"
 
 // Memoized expensive computation
@@ -195,7 +223,7 @@ const getUserInfo = combineSelectors(
 );
 
 // Immutable update
-const updateUser = patch(store.stateValue.user)({ age: 31 });
+const updateUser = patch(ready.user)({ age: 31 }).value;
 ```
 
 ## Selector Patterns
@@ -205,9 +233,18 @@ const updateUser = patch(store.stateValue.user)({ age: 31 });
 Build derived values from your state.
 
 ```ts
-const getFullName = (user: { first: string; last: string }) => `${user.first} ${user.last}`;
+interface User {
+  first: string;
+  last: string;
+}
 
-const getUserData = combineSelectors(pluck("firstName"), pluck("lastName"), getFullName);
+const getFullName = (user: User) => `${user.first} ${user.last}`;
+
+const getUserData = combineSelectors(
+  pluck<User>()((u) => u.first),
+  pluck<User>()((u) => u.last),
+  getFullName
+);
 ```
 
 ### Conditional Selection
@@ -216,9 +253,73 @@ Handle optional values gracefully.
 
 ```ts
 const getDisplayName = (user: { displayName?: string; username: string }) => {
-  const display = select(user, "displayName");
+  const display = select(user, (u) => u.displayName);
   return display ?? user.username;
 };
+```
+
+## Lenses (Optics)
+
+For composable, immutable **get and set** on deeply nested state, Tagix ships a small lens module. A lens is a first-class, type-safe optic — build one with `lens<State>()` and focus deeper with `.at(...)` or `.compose(...)`.
+
+```ts
+import { lens, prop } from "tagix";
+
+interface State {
+  user: { name: string; age: number };
+  count: number;
+}
+
+const nameLens = lens<State>().at("user").at("name");
+
+nameLens.get(state); // string
+nameLens.set(state, "Ada"); // new State, immutable (siblings preserved)
+nameLens.modify(state, (n) => n.toUpperCase()); // new State
+```
+
+Both `set` and `modify` are **dual**: call them data-first (`lens.set(state, value)`) or data-last (`lens.set(value)`) to produce a reusable `State => State` updater that composes with `pipe`/`flow`.
+
+```ts
+import { pipe, lens } from "tagix";
+
+const countLens = lens<State>().at("count");
+
+const next = pipe(
+  state,
+  countLens.modify((n) => n + 1),
+  countLens.set(100)
+);
+```
+
+`prop<State, "count">("count")` is shorthand for `lens<State>().at("count")`. Lenses pair naturally with action handlers for clean, immutable updates without manual spreading.
+
+## Ordering and Sorting
+
+For comparing and sorting derived values, Tagix ships a composable `Order` module (exported as a namespace). Build primitive orders, derive new ones from a field, and chain tie-breakers.
+
+```ts
+import { Order, pipe } from "tagix";
+
+interface User {
+  name: string;
+  age: number;
+}
+
+const byAge = Order.mapInput(Order.number, (u: User) => u.age);
+const byName = Order.mapInput(Order.string, (u: User) => u.name);
+
+// Sort by age, then by name on ties — returns a new array (input untouched).
+const ordered = pipe(users, Order.sort(Order.combine(byAge, byName)));
+```
+
+Primitive orders (`Order.number`, `Order.string`, `Order.boolean`, `Order.bigint`, `Order.date`) and combinators (`reverse`, `mapInput`, `combine`, `combineAll`, `array`) compose freely. Comparison helpers — `lessThan`, `greaterThan` (and inclusive variants), `min`, `max`, `clamp`, `between`, `sort` — each take an `Order` and return a ready-to-use function.
+
+```ts
+const clampScore = Order.clamp(Order.number);
+clampScore(120, { minimum: 0, maximum: 100 }); // 100
+
+const newest = Order.max(Order.date);
+newest(a.createdAt, b.createdAt); // the later Date
 ```
 
 ### Reactivity with Memoization

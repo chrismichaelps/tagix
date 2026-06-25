@@ -340,3 +340,117 @@ describe("Store Edge Cases", () => {
     });
   });
 });
+
+describe("Store reset", () => {
+  it("restores the initial state passed to createStore", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment").withState(
+      (s, p) => CounterState.Ready({ value: getValue(s) + p.amount })
+    );
+    store.register("Increment", increment);
+
+    store.dispatch(increment, { amount: 5 });
+    expect(store.stateValue._tag).toBe("Ready");
+    expect(getValue(store.stateValue)).toBe(5);
+
+    store.reset();
+    expect(store.stateValue._tag).toBe("Idle");
+    expect(getValue(store.stateValue)).toBe(0);
+  });
+
+  it("notifies subscribers by default and can suppress with notify=false", () => {
+    const store = createStore(CounterState.Ready({ value: 9 }), CounterState);
+    const seen: string[] = [];
+    store.subscribe((s) => seen.push(s._tag)); // initial emit: "Ready"
+
+    store.reset();
+    expect(seen).toEqual(["Ready", "Ready"]); // reset to the Ready initial state notifies
+
+    store.setState(CounterState.Idle({ value: 1 }));
+    store.reset(false); // no notification
+    expect(seen).toEqual(["Ready", "Ready", "Idle"]);
+    expect(store.stateValue._tag).toBe("Ready");
+  });
+});
+
+describe("Store subscribe with selector", () => {
+  function setup() {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const increment = createAction<{ amount: number }, CounterStateType>("Increment").withState(
+      (s, p) => CounterState.Ready({ value: getValue(s) + p.amount })
+    );
+    store.register("Increment", increment);
+    return { store, increment };
+  }
+
+  it("fires immediately with the current value and undefined previous", () => {
+    const { store } = setup();
+    const calls: Array<[number, number | undefined]> = [];
+    store.subscribe(
+      (s) => getValue(s),
+      (v, prev) => calls.push([v, prev])
+    );
+    expect(calls).toEqual([[0, undefined]]);
+  });
+
+  it("fires on change with new and previous selected values", () => {
+    const { store, increment } = setup();
+    const calls: Array<[number, number | undefined]> = [];
+    store.subscribe(
+      (s) => getValue(s),
+      (v, prev) => calls.push([v, prev])
+    );
+    store.dispatch(increment, { amount: 5 });
+    store.dispatch(increment, { amount: 3 });
+    expect(calls).toEqual([
+      [0, undefined],
+      [5, 0],
+      [8, 5],
+    ]);
+  });
+
+  it("does not fire when the selected value is unchanged", () => {
+    const { store, increment } = setup();
+    let count = 0;
+    store.subscribe(
+      (s) => getValue(s) > 0, // boolean; stays true across increments
+      () => {
+        count++;
+      }
+    );
+    expect(count).toBe(1); // initial (false)
+    store.dispatch(increment, { amount: 5 }); // false -> true: fires
+    store.dispatch(increment, { amount: 1 }); // true -> true: no fire
+    expect(count).toBe(2);
+  });
+
+  it("honors a custom equals comparator", () => {
+    const { store, increment } = setup();
+    let count = 0;
+    store.subscribe(
+      (s) => getValue(s),
+      () => {
+        count++;
+      },
+      { equals: () => true } // never considered changed
+    );
+    store.dispatch(increment, { amount: 5 });
+    store.dispatch(increment, { amount: 5 });
+    expect(count).toBe(1); // only the immediate call
+  });
+
+  it("stops firing after unsubscribe", () => {
+    const { store, increment } = setup();
+    let count = 0;
+    const stop = store.subscribe(
+      (s) => getValue(s),
+      () => {
+        count++;
+      }
+    );
+    store.dispatch(increment, { amount: 1 });
+    stop();
+    store.dispatch(increment, { amount: 1 });
+    expect(count).toBe(2); // immediate + one change, none after stop
+  });
+});

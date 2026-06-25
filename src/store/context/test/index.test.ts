@@ -23,7 +23,13 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createStore, createAction, createContext, taggedEnum } from "../../index";
+import {
+  createStore,
+  createAction,
+  createContext,
+  createServiceTag,
+  taggedEnum,
+} from "../../index";
 import { isSome, isNone, unwrap } from "../../../lib/Data/option";
 import { getValue } from "../../test/utils";
 import { TestError } from "../../error";
@@ -112,6 +118,68 @@ describe("TagixContext", () => {
       });
 
       expect(tag).toBe("Ready");
+    });
+
+    it("should not fire the callback when the selected value is unchanged", () => {
+      const store = createStore(CounterState.Ready({ value: 100 }), CounterState);
+      const context = createContext(store);
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // Selected value (value > 0) stays `true` across these increments.
+      context.select(
+        (state) => getValue(state) > 0,
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1); // initial synchronous call
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      expect(calls).toBe(1); // unchanged boolean → no extra fires (dedup)
+    });
+
+    it("deduplicates consecutive undefined selections from an optional field", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // `message` is undefined unless the state is Error — a selector over an
+      // optional field must dedup its `undefined` result, not fire on every change.
+      const unsubscribe = context.select(
+        (state) => (state._tag === "Error" ? state.message : undefined),
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1);
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      // Selected value stays undefined across both dispatches — no spurious fires.
+      expect(calls).toBe(1);
+
+      unsubscribe();
     });
   });
 
@@ -220,6 +288,33 @@ describe("TagixContext", () => {
 
       expect(getValue(context.getCurrent())).toBe(10);
     });
+
+    it("should clear dispatch context when context dispatch throws", () => {
+      const Secret = createServiceTag<{ value: string }>("ContextLeakSecret");
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      context.provideService(Secret, { value: "leaked" });
+
+      const useSecret = createAction<undefined, CounterStateType>("UseSecret")
+        .withPayload(undefined)
+        .withHandler((_state, _payload, ctx) => {
+          const secret = ctx.getService(Secret);
+          return CounterState.Ready({ value: secret.value.length });
+        });
+
+      store.register("UseSecret", useSecret);
+
+      expect(() => context.dispatch("tagix/action/Missing", undefined)).toThrow();
+
+      store.dispatch(useSecret, undefined);
+
+      expect(store.stateValue._tag).toBe("Idle");
+      expect(getValue(store.stateValue)).toBe(0);
+      expect((store.lastError as Error).message).toBe(
+        "Handler with context must be called via context"
+      );
+    });
   });
 
   describe("fork/clone", () => {
@@ -254,6 +349,21 @@ describe("TagixContext", () => {
 
       expect(clone.getCurrent()).toEqual(context.getCurrent());
       expect(clone).not.toBe(context);
+    });
+
+    it("should preserve provided services when cloning and forking context", () => {
+      const Service = createServiceTag<{ value: string }>("CloneForkService");
+      const implementation = { value: "available" };
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      context.provideService(Service, implementation);
+
+      const clone = context.clone();
+      const fork = context.fork();
+
+      expect(clone.getService(Service)).toBe(implementation);
+      expect(fork.getService(Service)).toBe(implementation);
     });
   });
 
@@ -346,6 +456,17 @@ describe("TagixContext", () => {
       expect(value).toBe(0);
     });
 
+    it("should unsubscribe its internal store subscription on dispose", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+
+      expect((store as unknown as { subscribers: Set<unknown> }).subscribers.size).toBe(1);
+
+      context.dispose();
+
+      expect((store as unknown as { subscribers: Set<unknown> }).subscribers.size).toBe(0);
+    });
+
     it("should throw after dispose", () => {
       const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
       const context = createContext(store);
@@ -381,6 +502,71 @@ describe("TagixContext", () => {
       const derived = subContext.get<{ doubled: number }>("derived");
       expect(isSome(derived)).toBe(true);
       expect(unwrap(derived).doubled).toBe(20);
+    });
+
+    it("should not fire a derived-context select when the selected value is unchanged", () => {
+      const store = createStore(CounterState.Ready({ value: 100 }), CounterState);
+      const context = createContext(store);
+      const subContext = context.provide("flag", { active: true });
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      // Selected value (value > 0) stays `true` across these increments.
+      const unsubscribe = subContext.select(
+        (state) => getValue(state) > 0,
+        () => {
+          calls++;
+        }
+      );
+
+      // Initial settle fires once.
+      const baseline = calls;
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      // No extra fires — the selected boolean is unchanged across both dispatches.
+      expect(calls).toBe(baseline);
+
+      unsubscribe();
+    });
+
+    it("deduplicates consecutive undefined selections on a derived context", () => {
+      const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+      const context = createContext(store);
+      const subContext = context.provide("flag", { active: true });
+
+      const increment = createAction<{ amount: number }, CounterStateType>("Increment")
+        .withPayload({ amount: 1 })
+        .withState((s, p) => {
+          const state = s as Extract<CounterStateType, { value: number }>;
+          return { ...s, value: state.value + p.amount } as CounterStateType;
+        });
+      store.register("Increment", increment);
+
+      let calls = 0;
+      const unsubscribe = subContext.select(
+        (state) => (state._tag === "Error" ? state.message : undefined),
+        () => {
+          calls++;
+        }
+      );
+
+      expect(calls).toBe(1);
+
+      store.dispatch("tagix/action/Increment", { amount: 5 });
+      store.dispatch("tagix/action/Increment", { amount: 3 });
+
+      expect(calls).toBe(1);
+
+      unsubscribe();
     });
   });
 

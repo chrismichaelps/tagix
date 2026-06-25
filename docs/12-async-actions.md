@@ -48,10 +48,14 @@ const fetchUsers = createAsyncAction("FetchUsers")
 Define the state transition when the async action starts. This runs immediately when you dispatch the action.
 
 ```ts
-const fetchUsers = createAsyncAction("FetchUsers").state((s) => ({
-  ...s,
-  _tag: "Loading",
-}));
+const fetchUsers = createAsyncAction("FetchUsers")
+  .state((s) => ({
+    ...s,
+    _tag: "Loading",
+  }))
+  .effect(async () => fetch("/api/users").then((r) => r.json()))
+  .onSuccess((state, data) => ({ ...state, _tag: "Success", data }))
+  .onError((state, error) => ({ ...state, _tag: "Error", message: String(error) }));
 ```
 
 ### effect(fn)
@@ -59,10 +63,33 @@ const fetchUsers = createAsyncAction("FetchUsers").state((s) => ({
 Define the asynchronous operation. Return a promise that resolves with the result.
 
 ```ts
-const fetchUsers = createAsyncAction("FetchUsers").effect(async () => {
-  const response = await fetch("/api/users");
-  return response.json();
-});
+const fetchUsers = createAsyncAction("FetchUsers")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async () => {
+    const response = await fetch("/api/users");
+    return response.json();
+  })
+  .onSuccess((state, data) => ({ ...state, _tag: "Success", data }))
+  .onError((state, error) => ({ ...state, _tag: "Error", message: String(error) }));
+```
+
+**The effect's return type is inferred and flows into `onSuccess`** — `data` is the concrete result type, never `unknown`. You don't need the third type argument on `createAsyncAction`; annotate the effect's return (or let it infer) to type the result precisely:
+
+```ts
+interface User {
+  id: number;
+  name: string;
+}
+
+createAsyncAction<{ id: number }, AppState>("FetchUser")
+  .state(() => AppState.Loading({}))
+  .effect(async (payload): Promise<User> => {
+    const res = await fetch(`/api/users/${payload.id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as User;
+  })
+  .onSuccess((s, user) => AppState.Ready({ user })) // `user` is typed as User
+  .onError((s, error) => AppState.Failed({ message: String(error) }));
 ```
 
 ### onSuccess(fn)
@@ -70,11 +97,15 @@ const fetchUsers = createAsyncAction("FetchUsers").effect(async () => {
 Define the state transition when the effect completes successfully.
 
 ```ts
-const fetchUsers = createAsyncAction("FetchUsers").onSuccess((state, data) => ({
-  ...state,
-  _tag: "Success",
-  data,
-}));
+const fetchUsers = createAsyncAction("FetchUsers")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async () => fetch("/api/users").then((r) => r.json()))
+  .onSuccess((state, data) => ({
+    ...state,
+    _tag: "Success",
+    data,
+  }))
+  .onError((state, error) => ({ ...state, _tag: "Error", message: String(error) }));
 ```
 
 ### onError(fn)
@@ -82,12 +113,39 @@ const fetchUsers = createAsyncAction("FetchUsers").onSuccess((state, data) => ({
 Define the state transition when the effect fails.
 
 ```ts
-const fetchUsers = createAsyncAction("FetchUsers").onError((state, error) => ({
-  ...state,
-  _tag: "Error",
-  message: error.message,
-}));
+const fetchUsers = createAsyncAction("FetchUsers")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect(async () => fetch("/api/users").then((r) => r.json()))
+  .onSuccess((state, data) => ({ ...state, _tag: "Success", data }))
+  .onError((state, error) => ({
+    ...state,
+    _tag: "Error",
+    message: error instanceof Error ? error.message : String(error),
+  }));
 ```
+
+### Accessing services in onSuccess / onError
+
+Like `effect`, the `onSuccess` and `onError` handlers receive the dispatch **context** as a third argument, so they can use services (logging, error reporting, analytics) when dispatched via a context. The argument is optional — handlers that ignore it are unchanged.
+
+```ts
+const fetchUser = createAsyncAction<{ id: string }, UserState, User>("FetchUser")
+  .state((s) => ({ ...s, _tag: "Loading" }))
+  .effect((payload, context) => context.getService(Api).getUser(payload.id))
+  .onSuccess((state, user, context) => {
+    context.getService(Logger).info(`loaded ${user.id}`);
+    return { ...state, _tag: "Success", user };
+  })
+  .onError((state, error, context) => {
+    context.getService(Reporter).report(error);
+    return { ...state, _tag: "Error", message: String(error) };
+  });
+
+// Dispatch through a context so services are available:
+context.dispatch(fetchUser, { id: "42" });
+```
+
+> The context is only populated when dispatching through a `TagixContext`. With a bare `store.dispatch`, the third argument is `null`.
 
 ## Complete Example
 
@@ -101,7 +159,7 @@ const UserState = taggedEnum({
   Error: { message: "", status: 0 },
 });
 
-const store = createStore(UserState.Idle());
+const store = createStore(UserState.Idle({}), UserState);
 
 const fetchUsers = createAsyncAction("FetchUsers")
   .state((s) => ({ ...s, _tag: "Loading" }))
@@ -122,7 +180,7 @@ const fetchUsers = createAsyncAction("FetchUsers")
   .onError((state, error) => ({
     ...state,
     _tag: "Error",
-    message: error.message,
+    message: error instanceof Error ? error.message : String(error),
     status: 500,
   }));
 
@@ -163,7 +221,8 @@ const fetchData = createAsyncAction("FetchData")
     // s: UserState
     // users: User[]
     return { ...s, _tag: "Success", users };
-  });
+  })
+  .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
 ```
 
 ## State Freshness
@@ -180,7 +239,8 @@ const asyncAction = createAsyncAction("AsyncAction")
   .onSuccess((s, result) => {
     // s is the current state after any concurrent updates
     return { ...s, _tag: "Ready", value: s.value + result };
-  });
+  })
+  .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
 
 store.dispatch("tagix/action/AsyncAction", {});
 store.dispatch("tagix/action/Increment", { amount: 5 });
@@ -204,7 +264,7 @@ const riskyFetch = createAsyncAction("RiskyFetch")
   .onError((state, error) => ({
     ...state,
     _tag: "Error",
-    message: error.message,
+    message: error instanceof Error ? error.message : String(error),
   }));
 
 try {
@@ -234,7 +294,7 @@ const fetchWithRetry = createAsyncAction("FetchWithRetry")
     }
   })
   .onSuccess((s, data) => ({ ...s, _tag: "Success", data }))
-  .onError((s, error) => ({ ...s, _tag: "Error", message: error.message }));
+  .onError((s, error) => ({ ...s, _tag: "Error", message: String(error) }));
 ```
 
 ## Concurrent Actions
@@ -244,11 +304,12 @@ Multiple async actions can run at the same time.
 ```ts
 const fetchUser = createAsyncAction("FetchUser")
   .state((s) => s)
-  .effect(async () => {
-    const response = await fetch(`/api/users/${id}`);
+  .effect(async (payload: { id: number }) => {
+    const response = await fetch(`/api/users/${payload.id}`);
     return response.json();
   })
-  .onSuccess((s, user) => ({ ...s, currentUser: user }));
+  .onSuccess((s, user) => ({ ...s, currentUser: user }))
+  .onError((s, error) => ({ ...s, userError: String(error) }));
 
 const fetchPosts = createAsyncAction("FetchPosts")
   .state((s) => s)
@@ -256,7 +317,8 @@ const fetchPosts = createAsyncAction("FetchPosts")
     const response = await fetch("/api/posts");
     return response.json();
   })
-  .onSuccess((s, posts) => ({ ...s, posts }));
+  .onSuccess((s, posts) => ({ ...s, posts }))
+  .onError((s, error) => ({ ...s, postsError: String(error) }));
 
 store.register("FetchUser", fetchUser);
 store.register("FetchPosts", fetchPosts);

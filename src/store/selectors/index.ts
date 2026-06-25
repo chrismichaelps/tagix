@@ -30,6 +30,15 @@ interface Patchable<T> extends Function {
   value: T;
 }
 
+function enumerableKeys(value: object): Array<string | symbol> {
+  return [
+    ...Object.keys(value),
+    ...Object.getOwnPropertySymbols(value).filter((symbol) =>
+      Object.prototype.propertyIsEnumerable.call(value, symbol)
+    ),
+  ];
+}
+
 /**
  * Creates an immutable patching function for objects.
  * @typeParam T - The object type.
@@ -71,33 +80,86 @@ export function getState<S extends { readonly _tag: string }, K extends S["_tag"
 }
 
 /**
- * Selects a property from an object.
- * @typeParam T - The object type.
- * @typeParam K - The property key type.
- * @param obj - The object to select from.
- * @param key - The property key.
- * @returns The property value, or undefined if not present.
+ * Runs an accessor against a value, returning `undefined` instead of throwing
+ * when an intermediate property is missing (e.g. reading through `null`).
+ * @internal
  */
-export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K] | undefined {
-  return key in obj ? obj[key] : undefined;
+function safeAccess<T, R>(obj: T, accessor: (state: T) => R): R | undefined {
+  try {
+    return accessor(obj);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * Creates a function that plucks a property (or nested property) from an object.
+ * Selects a value from an object using a type-safe accessor function.
  * @typeParam T - The object type.
- * @typeParam K - The property path type (supports dot notation).
- * @param key - The property key or dot-separated path (e.g., "user.name").
- * @returns A function that extracts the value at the path.
- * @remarks Returns undefined if any part of the path is null/undefined.
+ * @typeParam R - The accessed value type.
+ * @param obj - The object to select from.
+ * @param accessor - Function that reads the desired value from the object.
+ * @returns The accessed value, or `undefined` if traversal hits a nullish value.
+ * @remarks
+ * Prefer this form — it is fully type-checked, supports nested access, and gives
+ * editor autocomplete: `select(state, s => s.user.name)`.
+ * @example
+ * ```ts
+ * const name = select(state, s => s.user.name); // string | undefined
+ * ```
  */
-export function pluck<T extends object, K extends string>(key: K): (obj: T) => unknown {
+export function select<T extends object, R>(obj: T, accessor: (state: T) => R): R | undefined;
+/**
+ * Selects a property from an object by key.
+ * @deprecated Use a function accessor for full type-safety and autocomplete:
+ * `select(obj, s => s.key)`. String keys are not checked for nested paths.
+ */
+export function select<T extends object, K extends keyof T>(obj: T, key: K): T[K] | undefined;
+export function select<T extends object>(
+  obj: T,
+  keyOrAccessor: keyof T | ((state: T) => unknown)
+): unknown {
+  if (typeof keyOrAccessor === "function") {
+    return safeAccess(obj, keyOrAccessor);
+  }
+  return keyOrAccessor in obj ? obj[keyOrAccessor] : undefined;
+}
+
+/**
+ * Creates a reusable, type-safe selector for a state type `T`.
+ *
+ * Curried by the state type so TypeScript infers the accessor parameter and
+ * the result — no `typeof`, no per-parameter annotation. This mirrors the
+ * `lens<T>()` optics API.
+ *
+ * @typeParam T - The state/object type to read from.
+ * @returns A function that takes an accessor and yields a reusable selector.
+ * @remarks Returns `undefined` if traversal hits a nullish value.
+ * @example
+ * ```ts
+ * const userName = pluck<State>()(s => s.user.name);
+ * userName(state); // string | undefined — `s` is inferred as State
+ * ```
+ */
+export function pluck<T>(): <R>(accessor: (state: T) => R) => (state: T) => R | undefined;
+/**
+ * Creates a function that plucks a property (or nested dot-path) from an object.
+ * @deprecated Use the curried accessor form for full type-safety and autocomplete:
+ * `pluck<State>()(s => s.user.name)`. Dot-path strings return `unknown` for nested keys.
+ */
+export function pluck<K extends string>(
+  key: K
+): <T extends object>(obj: T) => K extends keyof T ? T[K] : unknown;
+export function pluck(key?: string): unknown {
+  if (key === undefined) {
+    return (accessor: (state: unknown) => unknown) => (obj: unknown) => safeAccess(obj, accessor);
+  }
+
   if (!key.includes(".")) {
-    return (obj: T): unknown => (hasProperty(obj, key) ? obj[key] : undefined);
+    return (obj: object) => (hasProperty(obj, key) ? obj[key] : undefined);
   }
 
   const keys = key.split(".");
-
-  return (obj: T): unknown => {
+  return (obj: object) => {
     let current: unknown = obj;
     for (const k of keys) {
       if (isNullish(current) || !isRecord(current)) return undefined;
@@ -151,23 +213,73 @@ export function combineSelectors<T extends object, R1, R2, R3>(
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {
+  return deepEqualInner(a, b, new WeakMap<object, object>());
+}
+
+function deepEqualInner(a: unknown, b: unknown, seen: WeakMap<object, object>): boolean {
   if (Object.is(a, b)) return true;
   if (a === null || b === null) return false;
   if (typeof a !== typeof b) return false;
 
   if (typeof a !== "object" || typeof b !== "object") return false;
 
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+
+  if (a instanceof RegExp || b instanceof RegExp) {
+    return a instanceof RegExp && b instanceof RegExp && String(a) === String(b);
+  }
+
+  // Cycle guard: record this pair before recursing so self-referential
+  // structures resolve to equal instead of overflowing the stack.
+  if (seen.get(a) === b) return true;
+  seen.set(a, b);
+
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map)) return false;
+    if (a.size !== b.size) return false;
+    for (const [key, value] of a) {
+      if (!b.has(key) || !deepEqualInner(value, b.get(key), seen)) return false;
+    }
+    return true;
+  }
+
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set)) return false;
+    if (a.size !== b.size) return false;
+    const unmatched = Array.from(b);
+    for (const valueA of a) {
+      const matchIndex = unmatched.findIndex((valueB) => deepEqualInner(valueA, valueB, seen));
+      if (matchIndex === -1) return false;
+      unmatched.splice(matchIndex, 1);
+    }
+    return true;
+  }
+
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b)) return false;
+    if (a.constructor !== b.constructor || a.byteLength !== b.byteLength) return false;
+    const bytesA = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    const bytesB = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+    return bytesA.every((byte, index) => byte === bytesB[index]);
+  }
+
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
-    return a.every((val, idx) => deepEqual(val, b[idx]));
+    return a.every((val, idx) => deepEqualInner(val, b[idx], seen));
   }
 
   if (Array.isArray(a) !== Array.isArray(b)) return false;
 
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
+  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+
+  const keysA = enumerableKeys(a);
+  const keysB = enumerableKeys(b);
   if (keysA.length !== keysB.length) return false;
-  return keysA.every((key) => deepEqual(a[key as keyof typeof a], b[key as keyof typeof b]));
+  return keysA.every(
+    (key) => key in b && deepEqualInner(a[key as keyof typeof a], b[key as keyof typeof b], seen)
+  );
 }
 
 /**
@@ -188,6 +300,67 @@ export function memoize<T extends object, R>(selector: (input: T) => R): (input:
     }
     lastInput = input;
     lastResult = selector(input);
+    return lastResult;
+  };
+}
+
+/**
+ * Composes input selectors with a combiner, memoizing the result so the combiner
+ * only re-runs when one of the input values changes (compared by reference).
+ *
+ * This is the reselect / Redux Toolkit `createSelector` pattern: derive cheap
+ * inputs from state, then compute an expensive result that is cached until a
+ * relevant input actually changes — unlike `memoize`, which compares the whole
+ * input, or `combineSelectors`, which only bundles results into a tuple.
+ *
+ * @typeParam T - The input state type.
+ * @example
+ * ```ts
+ * const selectTotal = createSelector(
+ *   (s: State) => s.items,
+ *   (s: State) => s.taxRate,
+ *   (items, taxRate) => expensiveSum(items) * (1 + taxRate)
+ * );
+ * selectTotal(state); // recomputes only when items or taxRate change by reference
+ * ```
+ */
+export function createSelector<T, R1, Result>(
+  input1: (state: T) => R1,
+  combiner: (r1: R1) => Result
+): (state: T) => Result;
+export function createSelector<T, R1, R2, Result>(
+  input1: (state: T) => R1,
+  input2: (state: T) => R2,
+  combiner: (r1: R1, r2: R2) => Result
+): (state: T) => Result;
+export function createSelector<T, R1, R2, R3, Result>(
+  input1: (state: T) => R1,
+  input2: (state: T) => R2,
+  input3: (state: T) => R3,
+  combiner: (r1: R1, r2: R2, r3: R3) => Result
+): (state: T) => Result;
+export function createSelector<T>(
+  ...args:
+    | ReadonlyArray<(state: T) => unknown>
+    | [...Array<(state: T) => unknown>, (...inputs: never[]) => unknown]
+): (state: T) => unknown {
+  const combiner = args[args.length - 1] as (...inputs: unknown[]) => unknown;
+  const inputs = args.slice(0, -1) as ReadonlyArray<(state: T) => unknown>;
+
+  let lastInputs: unknown[] | undefined;
+  let lastResult: unknown;
+
+  return (state: T): unknown => {
+    const current = inputs.map((input) => input(state));
+    if (
+      lastInputs !== undefined &&
+      current.length === lastInputs.length &&
+      current.every((value, index) => Object.is(value, lastInputs![index]))
+    ) {
+      return lastResult;
+    }
+    lastInputs = current;
+    lastResult = combiner(...current);
     return lastResult;
   };
 }

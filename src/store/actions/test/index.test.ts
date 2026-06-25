@@ -380,6 +380,7 @@ describe("createAsyncAction", () => {
   it("should handle async action with retry logic", async () => {
     const store = createStore(CounterState.Pending({ value: 0, retries: 0 }), CounterState, {
       name: "RetryTest",
+      maxRetries: 3,
     });
 
     let attempts = 0;
@@ -681,6 +682,7 @@ describe("createAsyncAction - Retry Logic", () => {
   it("should handle async action with retry logic", async () => {
     const store = createStore(CounterState.Pending({ value: 0, retries: 0 }), CounterState, {
       name: "RetryTest",
+      maxRetries: 3,
     });
 
     let attempts = 0;
@@ -965,7 +967,7 @@ describe("Dispatch API", () => {
   });
 
   it("should dispatch async actions with retry", async () => {
-    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState, { maxRetries: 3 });
 
     let attempts = 0;
     const fetchWithRetry = createAsyncAction<void, CounterStateType, string>("FetchWithRetry")
@@ -1378,5 +1380,128 @@ describe("Payload Flow", () => {
     await store.dispatch(createSearchUsers, { userId: 1, includePosts: true, page: 5 });
 
     expect(capturedPayload).toEqual({ userId: 1, includePosts: true, page: 5 });
+  });
+});
+
+describe("RelaxedState type safety (typos must fail to compile)", () => {
+  const StrictState = taggedEnum({
+    Idle: { value: 0 },
+    Loading: {},
+    Ready: { value: 0 },
+    Error: { message: "", code: 0 },
+  });
+
+  type StrictStateType = typeof StrictState.State;
+
+  it("lets real fields through the handler without narrowing", () => {
+    const inc = createAction<{ amount: number }, StrictStateType>("Inc")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    const store = createStore(StrictState.Idle({ value: 0 }), StrictState);
+    store.register("Inc", inc);
+    store.dispatch("tagix/action/Inc", { amount: 5 });
+
+    expect((store.stateValue as { value: number }).value).toBe(5);
+  });
+
+  it("catches a typo on a sync handler state field", () => {
+    // If RelaxedState ever reverts to `& Record<string, any>`, this @ts-expect-error
+    // will itself error ("unused @ts-expect-error") — surfacing the regression.
+    // The misspelling `valu` (not `value`) must NOT typecheck.
+    createAction<{ amount: number }, StrictStateType>("Bad")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => {
+        // @ts-expect-error property 'valu' does not exist on a bounded RelaxedState
+        return { ...s, value: s.valu + p.amount };
+      });
+    expect(true).toBe(true);
+  });
+
+  it("catches a typo on an async onSuccess state field", () => {
+    createAsyncAction<undefined, StrictStateType, number>("BadAsync")
+      .state((s) => ({ ...s, _tag: "Loading" }))
+      .effect(async () => 1)
+      .onSuccess((s) => {
+        // @ts-expect-error property 'mesage' does not exist on a bounded RelaxedState
+        return { ...s, _tag: "Error" as const, message: s.mesage, code: 0 };
+      })
+      .onError((s) => s);
+    expect(true).toBe(true);
+  });
+
+  it("rejects accessing an unrelated property that no variant declares", () => {
+    createAction<undefined, StrictStateType>("NoProp")
+      .withPayload(undefined)
+      .withState((s) => {
+        // @ts-expect-error 'totallyInventedKey' is not a field on any variant
+        return { ...s, value: s.totallyInventedKey };
+      });
+    expect(true).toBe(true);
+  });
+});
+
+describe("createAsyncAction — withPayload (DX gap #60)", () => {
+  it("stores the default payload provided via withPayload", () => {
+    const action = createAsyncAction<{ id: number }, CounterStateType, string>("Fetch")
+      .withPayload({ id: 0 })
+      .state(() => CounterState.Loading({}))
+      .effect(async (p) => String(p.id))
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: Number(result) }))
+      .onError((s) => s);
+
+    expect(action.payload).toEqual({ id: 0 });
+  });
+
+  it("dispatches with the explicit payload, not the default", async () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const fetch = createAsyncAction<{ id: number }, CounterStateType, number>("FetchById")
+      .withPayload({ id: 0 })
+      .state(() => CounterState.Loading({}))
+      .effect(async (p) => p.id * 10)
+      .onSuccess((s, result) => ({ ...s, _tag: "Ready", value: result } as any))
+      .onError((s) => s);
+
+    store.register("FetchById", fetch);
+
+    await store.dispatch("tagix/action/FetchById", { id: 7 });
+
+    expect((store.stateValue as any).value).toBe(70);
+  });
+
+  it("payload is undefined when withPayload is omitted (no payload! lie)", () => {
+    const action = createAsyncAction<void, CounterStateType, void>("NoPayload")
+      .state(() => CounterState.Loading({}))
+      .effect(async () => undefined)
+      .onSuccess((s) => ({ ...s, _tag: "Ready", value: 1 } as any))
+      .onError((s) => s);
+
+    expect(action.payload).toBeUndefined();
+  });
+});
+
+describe("createAction — withPayload default is honored (DX gap #60)", () => {
+  it("stores the default payload, and dispatch uses the explicit payload", () => {
+    const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+    const add = createAction<{ amount: number }, CounterStateType>("Add")
+      .withPayload({ amount: 1 })
+      .withState((s, p) => ({ ...s, value: s.value + p.amount }));
+
+    store.register("Add", add);
+
+    expect(add.payload).toEqual({ amount: 1 });
+
+    store.dispatch("tagix/action/Add", { amount: 10 });
+
+    expect((store.stateValue as any).value).toBe(10);
+  });
+
+  it("payload is undefined when withPayload is omitted (no payload! lie)", () => {
+    const action = createAction<void, CounterStateType>("Reset")
+      .withState((s) => ({ ...s, value: 0 }));
+
+    expect(action.payload).toBeUndefined();
   });
 });

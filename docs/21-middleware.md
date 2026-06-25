@@ -59,7 +59,7 @@ const authMiddleware = () => (next) => (action) => {
   return next(action);
 };
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [authMiddleware],
 });
 ```
@@ -86,7 +86,7 @@ Tagix includes a built-in logger middleware for development.
 ```ts
 import { createLoggerMiddleware } from "tagix";
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [
     createLoggerMiddleware({
       collapsed: true,
@@ -168,7 +168,7 @@ const throttleMiddleware = (ms: number) => {
   };
 };
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [throttleMiddleware(1000)],
 });
 ```
@@ -220,7 +220,7 @@ const createUndoMiddleware = () => {
     if (action.type === "tagix/action/Undo") {
       const previous = history.pop();
       if (previous) {
-        store.replaceState(previous);
+        store.setState(previous);
       }
       return false;
     }
@@ -237,12 +237,32 @@ const createUndoMiddleware = () => {
 };
 ```
 
+## Redux DevTools
+
+`createDevtoolsMiddleware` streams dispatched actions and state snapshots to the [Redux DevTools extension](https://github.com/reduxjs/redux-devtools), giving a tagix store the familiar action timeline and state inspector.
+
+```ts
+import { createDevtoolsMiddleware } from "tagix";
+
+const store = createStore(initialState, AppState, {
+  middlewares: [createDevtoolsMiddleware({ name: "App" })],
+});
+```
+
+When the extension isn't available (server-side, or not installed) the middleware is an inert pass-through. Pass a custom `connector` to target a mock or alternative backend:
+
+```ts
+createDevtoolsMiddleware({ name: "App", connector: myConnector });
+```
+
+Like the logger, it reports the state immediately after the action passes through the chain; an async action's final post-effect state is not a separate timeline entry.
+
 ## Combining Middleware
 
 Middleware order matters. The first middleware in the array sees the original action, and each subsequent middleware sees the action after previous middlewares have processed it.
 
 ```ts
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: [
     // First: Logging sees the original action
     createLoggerMiddleware(),
@@ -269,10 +289,36 @@ Only use the logger middleware during development.
 const logger =
   process.env.NODE_ENV === "development" ? createLoggerMiddleware({ collapsed: true }) : undefined;
 
-const store = createStore(initialState, {
+const store = createStore(initialState, AppState, {
   middlewares: logger ? [logger] : [],
 });
 ```
+
+## Persisting State
+
+`persist` hydrates a store from a key/value storage on startup and writes the serialized state on every change. It works with any `StorageLike` backend (`localStorage`, `sessionStorage`, an in-memory object in tests, or a custom adapter) and returns a function that stops persisting.
+
+```ts
+import { persist } from "tagix";
+
+const store = createStore(CounterState.Idle({ value: 0 }), CounterState);
+
+// Hydrate from + save to localStorage under "counter":
+const stop = persist(store, { key: "counter" });
+
+// Custom backend / serialization:
+persist(store, {
+  key: "counter",
+  storage: sessionStorage,
+  serialize: (s) => JSON.stringify(s),
+  deserialize: (raw) => JSON.parse(raw),
+  onError: (e) => console.warn("persist failed", e),
+});
+
+stop(); // stop writing on change
+```
+
+Hydration goes through `store.setState`, so it honors `strict` validation; corrupt or invalid stored data is reported via `onError` and otherwise ignored. State must be serializable (JSON by default).
 
 ## See Also
 

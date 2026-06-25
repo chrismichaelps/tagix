@@ -42,6 +42,13 @@ type ExtractProps<S extends { readonly _tag: string }, T extends string> = S ext
  * Match cases constraint — each key is a variant tag and each value is a handler
  * receiving the narrowed variant. The return type of each handler can differ;
  * the overall result is the union of all handler return types.
+ *
+ * @remarks The `use*` functions in this module are **one-shot synchronous reads**
+ * over a `TagixContext` — they do NOT subscribe and will not re-run when state
+ * changes. For reactive UI bindings, use the framework adapters:
+ * `tagix/react` (`useTagix`, `useTagixMatch`, `useTagixWhen`, `useTagixSelect`)
+ * or `tagix/vue` (same names as composables). The hooks here are appropriate
+ * for middleware, services, tests, and other places that need a single read.
  */
 type ExhaustiveMatchCases<S extends { readonly _tag: string }> = {
   [K in S["_tag"]]: (value: Extract<S, { _tag: K }>) => any;
@@ -86,6 +93,8 @@ type GroupDispatch<T extends Record<string, Action<any, any> | AsyncAction<any, 
  * Exhaustive pattern match on the current state of a context.
  * Every variant tag must be handled — the compiler enforces exhaustiveness.
  * Return type is the union of all handler return types.
+ * One-shot read — does not subscribe. For reactive matching, use `tagix/react`
+ * or `tagix/vue` (`useTagixMatch`).
  *
  * @typeParam S - State type with tagged enum structure.
  * @typeParam Cases - Object mapping every state tag to a handler (inferred).
@@ -116,6 +125,7 @@ export function useMatch<
  * Non-exhaustive pattern match on the current state of a context.
  * Only handles the variants you specify — unhandled variants return `undefined`.
  * Return type is the union of all provided handler return types, plus `undefined`.
+ * One-shot read — does not subscribe.
  *
  * @typeParam S - State type with tagged enum structure.
  * @typeParam Cases - Partial object mapping state tags to handlers (inferred).
@@ -145,6 +155,8 @@ export function useMatchPartial<
 /**
  * Narrow the current state to a single variant by tag.
  * Returns the variant's properties (without `_tag`) if matched, `undefined` otherwise.
+ * One-shot read — does not subscribe. For reactive narrowing, use `tagix/react`
+ * or `tagix/vue` (`useTagixWhen`).
  *
  * @typeParam S - State type with tagged enum structure.
  * @typeParam K - The variant tag to narrow to.
@@ -174,7 +186,8 @@ export function useWhen<S extends { readonly _tag: string }, K extends S["_tag"]
 }
 
 /**
- * Get the current state from a context.
+ * Get the current state from a context. One-shot read — does not subscribe.
+ * For reactive state in React/Vue, use `tagix/react` or `tagix/vue` (`useTagix`).
  *
  * @typeParam S - State type.
  * @param context - The context to read from.
@@ -191,7 +204,8 @@ export function useStore<S extends { readonly _tag: string }>(context: TagixCont
 }
 
 /**
- * Extract a value from state using a selector function.
+ * Extract a value from state using a selector function. One-shot read — does not
+ * subscribe. For reactive derived values, use `tagix/react` or `tagix/vue` (`useTagixSelect`).
  *
  * @typeParam S - State type.
  * @typeParam T - What the selector returns.
@@ -210,11 +224,13 @@ export function useSelector<S extends { readonly _tag: string }, T>(
   context: TagixContext<S>,
   selector: (state: S) => T
 ): T {
-  let value: T;
+  // `context.select` invokes the callback synchronously with the current value
+  // before returning, so `value` is always assigned here. This is a one-shot
+  // read: subscribe, capture, immediately unsubscribe.
+  let value!: T;
   const unsubscribe = context.select(selector, (newValue) => {
     value = newValue;
   });
-  value = selector(context.getCurrent());
   unsubscribe();
   return value;
 }

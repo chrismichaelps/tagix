@@ -23,9 +23,10 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
  */
 
 import { tryCatch, tryCatchAsync, match } from "../../lib/Data/either";
+import { deepEqual } from "../selectors";
 import { some, none, type Option } from "../../lib/Data/option";
 import { TaggedEnumConstructor } from "../../lib/Data/tagged-enum";
-import { isRecord, isFunction, hasProperty } from "../../lib/Data/predicate";
+import { isFunction, hasProperty } from "../../lib/Data/predicate";
 import {
   StoreConfig,
   Action,
@@ -52,33 +53,6 @@ type StateTransitions<S extends { readonly _tag: string }> = Partial<
 /** Union type for storing heterogeneous actions in a Map */
 type AnyAction = Action<any, any> | AsyncAction<any, any, any>;
 
-function deepMerge(
-  target: Record<string, unknown>,
-  source: Record<string, unknown>
-): Record<string, unknown> {
-  if (source === null || source === undefined) {
-    return target;
-  }
-  if (target === null || target === undefined) {
-    return source;
-  }
-
-  const result: Record<string, unknown> = { ...target };
-
-  for (const key of Object.keys(source)) {
-    const sourceValue = source[key];
-    const targetValue = target[key];
-
-    if (isRecord(sourceValue)) {
-      result[key] = isRecord(targetValue) ? deepMerge(targetValue, sourceValue) : sourceValue;
-    } else {
-      result[key] = sourceValue;
-    }
-  }
-
-  return result;
-}
-
 /**
  * Core store implementation for Tagix state management.
  * @typeParam S - The state type, must be a discriminated union with `_tag` property.
@@ -86,6 +60,7 @@ function deepMerge(
  */
 export class TagixStore<S extends { readonly _tag: string }> {
   private state: S;
+  private readonly _initialState: S;
   private readonly stateConstructor: TaggedEnumConstructor<S>;
   private readonly actions: Map<string, AnyAction> = new Map();
   private readonly _errorHistory: Map<number, unknown> = new Map();
@@ -104,6 +79,12 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private _actionsDirty: boolean = false;
   private _cachedActionKeys: readonly string[] = [];
   private _cachedActionsMap: ReadonlyMap<string, AnyAction> = new Map();
+  // Re-entrancy guard: while subscribers are being notified, any nested
+  // notify (from a subscriber that calls dispatch) is pushed onto the queue
+  // and flushed after the current pass — instead of recursing into the stack,
+  // which otherwise runs ~hundreds of frames deep and overflows.
+  private _notifying: boolean = false;
+  private _pendingNotifications: number = 0;
 
   constructor(
     initialState: S,
@@ -111,6 +92,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     config: StoreConfig<S> = {}
   ) {
     this.state = initialState;
+    this._initialState = initialState;
     this.stateConstructor = stateConstructor;
     this.config = { ...DEFAULT_CONFIG, ...config } as Required<StoreConfig<S>>;
 
@@ -149,7 +131,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
       return true;
     };
 
-    for (const middleware of middlewares.reverse()) {
+    // Copy before reversing — `this.config.middlewares` is the caller's array
+    // reference (spread copies the reference, not the array), and reversing in
+    // place would corrupt the order for any other store sharing that array.
+    for (const middleware of [...middlewares].reverse()) {
       const mw = middleware(context);
       const currentNext = next;
       const bridgedNext = currentNext as unknown as (action: Action | AsyncAction) => boolean;
@@ -262,8 +247,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   get lastErrorCode(): number | undefined {
     const error = this.lastError;
     if (isTagixError(error)) {
-      const taggedError = error as TagixErrorObject;
-      return taggedError.code;
+      return error.code;
     }
     return undefined;
   }
@@ -376,7 +360,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     const action = this.actions.get(prefixedType);
 
     if (action === null || action === undefined) {
-      throw new ActionNotFoundError({ type: prefixedType });
+      return this._recordAndThrow(new ActionNotFoundError({ type: prefixedType }));
     }
 
     return this._dispatchAction(action, _payload);
@@ -385,7 +369,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
   private _dispatchAction(action: AnyAction, _payload: unknown): void | Promise<void> {
     const invalidAsyncAction = this._getInvalidAsyncActionInfo(action);
     if (invalidAsyncAction) {
-      throw new InvalidActionError(invalidAsyncAction);
+      return this._recordAndThrow(new InvalidActionError(invalidAsyncAction));
     }
 
     if (isAsyncAction(action)) {
@@ -444,6 +428,21 @@ export class TagixStore<S extends { readonly _tag: string }> {
     };
   }
 
+  private _assertValidState(newState: S, action: string): void {
+    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
+      throw new StateTransitionError({
+        expected: Array.from(this._validStateTags),
+        actual: newState._tag,
+        action,
+      });
+    }
+  }
+
+  private _recordAndThrow(error: unknown): never {
+    this.recordError(error);
+    throw error;
+  }
+
   private handleAction<TPayload>(action: Action<TPayload, S>, payload: TPayload): void {
     const context = this._dispatchContext;
     const handler =
@@ -463,16 +462,13 @@ export class TagixStore<S extends { readonly _tag: string }> {
         this.recordError(error);
       },
       onRight: (newState: S) => {
-        if (this.config.strict && !this._validStateTags.has(newState._tag)) {
-          throw new StateTransitionError({
-            expected: Array.from(this._validStateTags),
-            actual: newState._tag,
-            action: action.type,
-          });
+        try {
+          this._assertValidState(newState, action.type);
+          this.state = newState;
+          this.notifySubscribers();
+        } catch (error) {
+          this._recordAndThrow(error);
         }
-
-        this.state = newState;
-        this.notifySubscribers();
       },
     });
   }
@@ -481,70 +477,73 @@ export class TagixStore<S extends { readonly _tag: string }> {
     action: AsyncAction<TPayload, S, unknown>,
     payload: TPayload
   ): Promise<void> {
-    const maxRetries = this.config.maxRetries;
-    const context = this._dispatchContext;
-    let attempt = 0;
-    let lastError: unknown;
-    const baselineState = this.state;
-    let pendingState = action.state(baselineState);
+    try {
+      const maxRetries = this.config.maxRetries;
+      const context = this._dispatchContext;
+      let attempt = 0;
+      let lastError: unknown;
+      const baselineState = this.state;
+      let pendingState = action.state(baselineState);
 
-    this.state = pendingState;
-    this.notifySubscribers();
+      this._assertValidState(pendingState, action.type);
+      this.state = pendingState;
+      this.notifySubscribers();
 
-    while (attempt <= maxRetries) {
-      const result = await tryCatchAsync(
-        () => action.effect(payload, context),
-        (err) => err
-      );
+      while (attempt <= maxRetries) {
+        const result = await tryCatchAsync(
+          () => action.effect(payload, context),
+          (err) => err
+        );
 
-      const done = match(result, {
-        onRight: (value) => {
-          const freshState = this.state;
-          const mergedState = this._mergeAsyncState(
-            freshState,
-            pendingState,
-            value,
-            action.onSuccess
-          );
-          this.state = mergedState;
-          this.notifySubscribers();
-          return true;
-        },
-        onLeft: (error) => {
-          lastError = error;
-          attempt++;
-          if (attempt <= maxRetries) {
+        const done = match(result, {
+          onRight: (value) => {
             const freshState = this.state;
-            pendingState = action.onError(freshState, error);
-            this.state = pendingState;
+            const mergedState = this._mergeAsyncState(freshState, value, action.onSuccess, context);
+            this._assertValidState(mergedState, action.type);
+            this.state = mergedState;
             this.notifySubscribers();
-          }
-          return false;
-        },
-      });
+            return true;
+          },
+          onLeft: (error) => {
+            lastError = error;
+            attempt++;
+            if (attempt <= maxRetries) {
+              const freshState = this.state;
+              pendingState = action.onError(freshState, error, context);
+              this._assertValidState(pendingState, action.type);
+              this.state = pendingState;
+              this.notifySubscribers();
+            }
+            return false;
+          },
+        });
 
-      if (done) {
-        this._clearDispatchContext();
-        return;
+        if (done) {
+          return;
+        }
       }
+
+      const freshState = this.state;
+      const mergedState = this._mergeAsyncState(freshState, lastError, action.onError, context);
+      this._assertValidState(mergedState, action.type);
+      this.state = mergedState;
+      this.recordError(lastError);
+      this.notifySubscribers();
+    } catch (error) {
+      this.recordError(error);
+      throw error;
+    } finally {
+      this._clearDispatchContext();
     }
-
-    this._clearDispatchContext();
-
-    const freshState = this.state;
-    const mergedState = this._mergeAsyncState(freshState, pendingState, lastError, action.onError);
-    this.state = mergedState;
-    this.recordError(lastError);
-    this.notifySubscribers();
   }
 
   private _mergeAsyncState(
     freshState: S,
-    pendingState: S,
     handlerInput: unknown,
-    handler: (state: S, input: unknown) => S
+    handler: (state: S, input: unknown, context: unknown) => S,
+    context: unknown
   ): S {
-    return handler(freshState, handlerInput);
+    return handler(freshState, handlerInput, context);
   }
 
   private recordError(error: unknown): void {
@@ -556,8 +555,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
     this._lastErrorValue = error;
 
     if (isTagixError(error)) {
-      const taggedError = error as TagixErrorObject;
-      const code = taggedError.code;
+      const code = error.code;
       const category = getErrorCategory(code);
 
       this._errorCodeIndex.set(code, (this._errorCodeIndex.get(code) ?? 0) + 1);
@@ -580,8 +578,7 @@ export class TagixStore<S extends { readonly _tag: string }> {
       if (oldestTimestamp !== undefined) {
         const oldError = this._errorHistory.get(oldestTimestamp);
         if (isTagixError(oldError)) {
-          const taggedOld = oldError as TagixErrorObject;
-          const oldCode = taggedOld.code;
+          const oldCode = oldError.code;
           const oldCategory = getErrorCategory(oldCode);
 
           const codeCount = this._errorCodeIndex.get(oldCode) ?? 1;
@@ -617,13 +614,51 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   private notifySubscribers(): void {
-    const currentState = this.state;
-    for (const subscriber of this.subscribers) {
-      try {
-        subscriber(currentState);
-      } catch (error) {
-        this.recordError(error);
+    // A notification pass is already running: record that a deferred flush is
+    // needed and return. The active pass will pick it up instead of recursing
+    // synchronously (which otherwise runs hundreds of frames deep and overflows).
+    if (this._notifying) {
+      this._pendingNotifications++;
+      return;
+    }
+
+    this._notifying = true;
+    let flushPasses = 0;
+    try {
+      // Flush passes: the initial notification plus any deferred ones. Each
+      // pass holds _notifying true so nested notify calls defer rather than
+      // recurse. A flush may schedule further passes, so loop until drained
+      // — but cap iterations to prevent an infinite synchronous loop when a
+      // subscriber dispatches unconditionally (a user-side infinite loop).
+      const maxFlushPasses = 100;
+      do {
+        if (this._pendingNotifications > 0) {
+          this._pendingNotifications--;
+        }
+        flushPasses++;
+        const currentState = this.state;
+        for (const subscriber of this.subscribers) {
+          try {
+            subscriber(currentState);
+          } catch (error) {
+            this.recordError(error);
+          }
+        }
+      } while (this._pendingNotifications > 0 && flushPasses < maxFlushPasses);
+
+      // If deferred notifications remain after hitting the cap, a subscriber
+      // is dispatching unconditionally — break the cycle and record a warning.
+      if (this._pendingNotifications > 0) {
+        const discarded = this._pendingNotifications;
+        this._pendingNotifications = 0;
+        this.recordError(
+          new Error(
+            `Notification cycle detected: ${discarded} deferred notification(s) discarded after ${maxFlushPasses} flush passes. A subscriber is dispatching on every notification.`
+          )
+        );
       }
+    } finally {
+      this._notifying = false;
     }
   }
 
@@ -632,14 +667,68 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @param callback - Function called immediately with current state, then on each change.
    * @returns Unsubscribe function to remove the callback.
    */
-  subscribe(callback: SubscribeCallback<S>): () => void {
+  subscribe(callback: SubscribeCallback<S>): () => void;
+  /**
+   * Subscribes to a derived value, invoking the listener only when the selected
+   * value changes. The listener receives the new and previous selected values.
+   * @typeParam T - The selected value type.
+   * @param selector - Derives the value to watch from state.
+   * @param listener - Called immediately with the current value (previous `undefined`),
+   *   then whenever the selected value changes.
+   * @param options - `equals` overrides the change comparison (default: deep equality).
+   * @returns Unsubscribe function.
+   * @example
+   * ```ts
+   * const stop = store.subscribe(
+   *   (s) => s.count,
+   *   (count, previous) => console.log(count, previous)
+   * );
+   * ```
+   */
+  subscribe<T>(
+    selector: (state: S) => T,
+    listener: (selected: T, previous: T | undefined) => void,
+    options?: { equals?: (a: T, b: T) => boolean }
+  ): () => void;
+  subscribe<T>(
+    callbackOrSelector: SubscribeCallback<S> | ((state: S) => T),
+    listener?: (selected: T, previous: T | undefined) => void,
+    options?: { equals?: (a: T, b: T) => boolean }
+  ): () => void {
+    if (listener === undefined) {
+      const callback = callbackOrSelector as SubscribeCallback<S>;
+      try {
+        callback(this.state);
+      } catch (error) {
+        this.recordError(error);
+      }
+      this.subscribers.add(callback);
+      return () => this.subscribers.delete(callback);
+    }
+
+    const selector = callbackOrSelector as (state: S) => T;
+    const equals = options?.equals ?? deepEqual;
+    let last!: T;
+    let hasLast = false;
+
+    const wrapped: SubscribeCallback<S> = (state) => {
+      const selected = selector(state);
+      if (hasLast && equals(selected, last)) {
+        return;
+      }
+      const previous = hasLast ? last : undefined;
+      last = selected;
+      hasLast = true;
+      listener(selected, previous);
+    };
+
     try {
-      callback(this.state);
+      wrapped(this.state);
     } catch (error) {
       this.recordError(error);
     }
-    this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
+    this.subscribers.add(wrapped);
+    return () => this.subscribers.delete(wrapped);
   }
 
   /**
@@ -673,10 +762,10 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * @remarks Returns the state unchanged if no handler exists for the current tag.
    */
   transitions(transitions: StateTransitions<S>): (state: S, payload?: unknown) => S {
-    return (state) => {
+    return (state, payload) => {
       const tag = state._tag as keyof StateTransitions<S>;
       const fn = transitions[tag];
-      return fn ? fn(state) : state;
+      return fn ? fn(state, payload) : state;
     };
   }
 
@@ -700,20 +789,38 @@ export class TagixStore<S extends { readonly _tag: string }> {
   }
 
   /**
-   * Selects a property from the current state.
-   * @typeParam K - The property key type.
-   * @param key - The property key to access.
-   * @returns The property value, or undefined if not present.
+   * Selects a value from the current state using a type-safe accessor function.
+   * @typeParam R - The accessed value type.
+   * @param accessor - Function that reads the desired value from the state.
+   * @returns The accessed value, or `undefined` if traversal hits a nullish value.
    *
    * @remarks
-   * For properties that exist on all variants, the return type is correctly inferred.
-   * For properties that may not exist on all variants, returns `unknown | undefined`.
+   * Prefer this form — it is fully type-checked, supports nested access, and gives
+   * editor autocomplete: `store.select(s => s.user.name)`.
+   * @example
+   * ```ts
+   * const count = store.select(s => s.count); // number | undefined
+   * ```
    */
-  select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined {
-    if (hasProperty(this.state, key)) {
-      return this.state[key] as K extends keyof S ? S[K] : unknown | undefined;
+  select<R>(accessor: (state: S) => R): R | undefined;
+  /**
+   * Selects a property from the current state by key.
+   * @deprecated Use a function accessor for full type-safety and autocomplete:
+   * `store.select(s => s.key)`. String keys are not checked for nested paths.
+   */
+  select<K extends string>(key: K): K extends keyof S ? S[K] : unknown | undefined;
+  select(keyOrAccessor: string | ((state: S) => unknown)): unknown {
+    if (typeof keyOrAccessor === "function") {
+      try {
+        return keyOrAccessor(this.state);
+      } catch {
+        return undefined;
+      }
     }
-    return undefined as K extends keyof S ? S[K] : unknown | undefined;
+    if (hasProperty(this.state, keyOrAccessor)) {
+      return this.state[keyOrAccessor];
+    }
+    return undefined;
   }
 
   /**
@@ -724,14 +831,27 @@ export class TagixStore<S extends { readonly _tag: string }> {
    * Primarily intended for restoring state from forks or persisted state.
    */
   setState(newState: S, notify: boolean = true): void {
-    if (this.config.strict && !this._validStateTags.has(newState._tag)) {
-      throw new StateTransitionError({
-        expected: Array.from(this._validStateTags),
-        actual: newState._tag,
-        action: "setState",
-      });
+    try {
+      this._assertValidState(newState, "setState");
+    } catch (error) {
+      this._recordAndThrow(error);
     }
     this.state = newState;
+    if (notify) {
+      this.notifySubscribers();
+    }
+  }
+
+  /**
+   * Resets the store to the initial state it was created with.
+   * @param notify - Whether to notify subscribers of the change (default: true).
+   * @remarks
+   * Restores the exact `initialState` passed to `createStore`. Useful for logout,
+   * "clear" flows, and resetting between tests. Like `setState`, this bypasses
+   * action dispatch; error history is left intact (use `clearErrorHistory` to reset it).
+   */
+  reset(notify: boolean = true): void {
+    this.state = this._initialState;
     if (notify) {
       this.notifySubscribers();
     }

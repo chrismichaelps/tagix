@@ -37,7 +37,7 @@ const getActionType = (action: Action<any, any> | AsyncAction<any, any, any>): s
 const cloneWithType = <T extends Action<any, any> | AsyncAction<any, any, any>>(
   action: T,
   newType: string
-): T => ({ ...action, type: newType }) as T;
+): T => ({ ...action, type: newType });
 
 /**
  * Creates an action group with a namespace prefix for all actions.

@@ -35,6 +35,14 @@ import type { ServiceTag } from "./services/types";
  */
 export type ContextId = symbol | string;
 
+/**
+ * Sentinel marking "no selected value seen yet" inside `select()`.
+ * Distinct from `undefined` because a selector may legitimately select
+ * `undefined` (e.g. over an optional field); conflating the two caused every
+ * `undefined`-returning selector to bypass change dedup and fire on each dispatch.
+ */
+const NO_SELECTION = Symbol("tagix/no-selection");
+
 interface ContextEntry<T> {
   id: ContextId;
   value: T;
@@ -80,6 +88,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
   private derivedContexts: Set<DerivedContext<S, unknown>> = new Set();
   private services: Map<ServiceTag<unknown>, unknown> = new Map();
   private _id: ContextId;
+  private storeUnsubscribe: (() => void) | null = null;
   private disposed = false;
   private errorHandler?: (error: unknown) => void;
 
@@ -104,7 +113,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
       config.parent._addChild(this as unknown as TagixContext<{ readonly _tag: string }>);
     }
 
-    store.subscribe((state) => {
+    this.storeUnsubscribe = store.subscribe((state) => {
       this._notifyChange(state);
     });
   }
@@ -116,6 +125,12 @@ export class TagixContext<S extends { readonly _tag: string }> {
   private _handleError(error: unknown): void {
     if (this.errorHandler) {
       this.errorHandler(error);
+    }
+  }
+
+  private _copyServicesTo(target: TagixContext<S>): void {
+    for (const [tag, implementation] of this.services) {
+      target.services.set(tag, implementation);
     }
   }
 
@@ -273,11 +288,11 @@ export class TagixContext<S extends { readonly _tag: string }> {
       });
     }
 
-    let lastSelected: T | undefined;
+    let lastSelected: T | typeof NO_SELECTION = NO_SELECTION;
 
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
-      if (lastSelected !== undefined && deepEqual(selected, lastSelected)) {
+      if (lastSelected !== NO_SELECTION && deepEqual(selected, lastSelected)) {
         return;
       }
       lastSelected = selected;
@@ -393,7 +408,13 @@ export class TagixContext<S extends { readonly _tag: string }> {
     if (tagixStore._setDispatchContext) {
       tagixStore._setDispatchContext(this);
     }
-    return this.store.dispatch(typeOrAction as string, payload);
+    try {
+      return this.store.dispatch(typeOrAction as string, payload);
+    } catch (error) {
+      const storeWithContext = this.store as { _clearDispatchContext?: () => void };
+      storeWithContext._clearDispatchContext?.();
+      throw error;
+    }
   }
 
   /**
@@ -407,7 +428,9 @@ export class TagixContext<S extends { readonly _tag: string }> {
       throw new ContextDisposedError({ action: "clone", message: "Cannot clone disposed context" });
     }
 
-    return new TagixContext(this.store as TagixStore<S>, { parent: null });
+    const clone = new TagixContext(this.store as TagixStore<S>, { parent: null });
+    this._copyServicesTo(clone);
+    return clone;
   }
 
   /**
@@ -440,6 +463,7 @@ export class TagixContext<S extends { readonly _tag: string }> {
     }
 
     const forkContext = new TagixContext(forkStore, { parent: null });
+    this._copyServicesTo(forkContext);
 
     return forkContext;
   }
@@ -536,6 +560,9 @@ export class TagixContext<S extends { readonly _tag: string }> {
       sub.unsubscribe();
     }
     this.subscriptions.clear();
+
+    this.storeUnsubscribe?.();
+    this.storeUnsubscribe = null;
 
     for (const child of this.childContexts) {
       child.dispose();
@@ -641,8 +668,14 @@ class DerivedContext<S extends { readonly _tag: string }, T> {
       });
     }
 
+    let lastSelected: U | typeof NO_SELECTION = NO_SELECTION;
+
     const wrappedCallback = (state: unknown): void => {
       const selected = selector(state as S);
+      if (lastSelected !== NO_SELECTION && deepEqual(selected, lastSelected)) {
+        return;
+      }
+      lastSelected = selected;
       callback(selected);
     };
 

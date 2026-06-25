@@ -24,7 +24,13 @@ Copyright (c) 2026 Chris M. (Michael) Pérez
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createServiceTag, createServiceRegistry } from "../index";
-import { createContext, createStore, createAction, taggedEnum } from "../../../index";
+import {
+  createContext,
+  createStore,
+  createAction,
+  createAsyncAction,
+  taggedEnum,
+} from "../../../index";
 
 interface TestService {
   value: string;
@@ -289,6 +295,57 @@ describe("Services", () => {
 
       context.dispatch(cacheAction, { key: "other-key" });
       expect((store.stateValue as any).data).toBe("not-found");
+    });
+
+    it("should provide context to async onSuccess", async () => {
+      const Logger = createServiceTag<{ info: (msg: string) => void }>("Logger");
+      const mockLogger = { info: vi.fn() };
+
+      const fetchAction = createAsyncAction<{ id: string }, TestStateType, string>("Fetch")
+        .state((s) => ({ ...s, _tag: "Idle" as const }))
+        .effect(async (payload) => `data-for-${payload.id}`)
+        .onSuccess((state, result, ctx) => {
+          ctx.getService(Logger).info(`loaded ${result}`);
+          return { ...state, _tag: "Ready" as const, data: result };
+        })
+        .onError((state) => state);
+
+      const store = createStore(TestState.Idle({ data: null }), TestState);
+      const context = createContext(store);
+      context.provideService(Logger, mockLogger);
+      store.register("Fetch", fetchAction);
+
+      await context.dispatch(fetchAction, { id: "42" });
+
+      expect(mockLogger.info).toHaveBeenCalledWith("loaded data-for-42");
+      expect(store.stateValue._tag).toBe("Ready");
+      expect((store.stateValue as any).data).toBe("data-for-42");
+    });
+
+    it("should provide context to async onError", async () => {
+      const Reporter = createServiceTag<{ report: (msg: string) => void }>("Reporter");
+      const mockReporter = { report: vi.fn() };
+
+      const fetchAction = createAsyncAction<{ id: string }, TestStateType, string>("FailFetch")
+        .state((s) => ({ ...s, _tag: "Idle" as const }))
+        .effect(async () => {
+          throw new Error("network down");
+        })
+        .onSuccess((state, result) => ({ ...state, _tag: "Ready" as const, data: result }))
+        .onError((state, error, ctx) => {
+          ctx.getService(Reporter).report(error instanceof Error ? error.message : "unknown");
+          return { ...state, _tag: "Idle" as const, data: "failed" };
+        });
+
+      const store = createStore(TestState.Idle({ data: null }), TestState);
+      const context = createContext(store);
+      context.provideService(Reporter, mockReporter);
+      store.register("FailFetch", fetchAction);
+
+      await context.dispatch(fetchAction, { id: "42" });
+
+      expect(mockReporter.report).toHaveBeenCalledWith("network down");
+      expect((store.stateValue as any).data).toBe("failed");
     });
   });
 

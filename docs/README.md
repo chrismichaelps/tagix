@@ -33,17 +33,19 @@ You should consider Tagix when your application has complex state logic, multipl
 | [Async Actions](12-async-actions.md)         | Asynchronous operations with side effects |
 | [State Machines](13-state-machines.md)       | Build state machines                      |
 | [Action Groups](14-action-groups.md)         | Namespace actions to avoid collisions     |
+| [Slices](15-slices.md)                       | Low-boilerplate stores with bound actions |
 
 ## Features
 
-| Topic                                  | Description                      |
-| -------------------------------------- | -------------------------------- |
-| [Selectors](20-selectors.md)           | Extract and transform state data |
-| [Middleware](21-middleware.md)         | Extend dispatch behavior         |
-| [Context](22-context.md)               | Framework-agnostic integration   |
-| [Error Handling](23-error-handling.md) | Handle errors gracefully         |
-| [Hooks](24-hooks.md)                   | Type-safe state access utilities |
-| [Services](25-services.md)             | Manage application dependencies  |
+| Topic                                              | Description                           |
+| -------------------------------------------------- | ------------------------------------- |
+| [Selectors](20-selectors.md)                       | Extract and transform state data      |
+| [Middleware](21-middleware.md)                     | Extend dispatch behavior              |
+| [Context](22-context.md)                           | Framework-agnostic integration        |
+| [Error Handling](23-error-handling.md)             | Handle errors gracefully              |
+| [Hooks](24-hooks.md)                               | Type-safe state access utilities      |
+| [Services](25-services.md)                         | Manage application dependencies       |
+| [Functional Utilities](26-functional-utilities.md) | Option, Either, pipe/flow, predicates |
 
 ## Advanced Topics
 

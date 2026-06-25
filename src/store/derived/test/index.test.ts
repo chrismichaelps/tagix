@@ -834,6 +834,27 @@ describe("deriveStore()", () => {
       expect((derived.stateValue as any)[sym].version).toBe("1.0");
     });
 
+    it("should notify when symbol-keyed derived values change", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+      const callback = vi.fn();
+      const sym = Symbol("metadata");
+
+      const derived = deriveStore([cart, discount], ([cartState]) => ({
+        [sym]: cartState._tag === "HasItems" ? cartState.items[0]?.name : "empty",
+        count: cartState._tag === "HasItems" ? cartState.items.length : 0,
+      }));
+
+      derived.subscribe(callback);
+      cart.setState(CartState.HasItems({ items: [{ name: "B", price: 10 }] }));
+
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect((derived.stateValue as any)[sym]).toBe("B");
+    });
+
     it("should handle map data structure in derivation", () => {
       const cart = createStore(
         CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
@@ -853,6 +874,29 @@ describe("deriveStore()", () => {
       expect(derived.stateValue.priceByName.get("A")).toBe(10);
     });
 
+    it("should notify when derived Map contents change", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+      const callback = vi.fn();
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        const priceByName = new Map<string, number>();
+        if (cartState._tag === "HasItems") {
+          cartState.items.forEach((item) => priceByName.set(item.name, item.price));
+        }
+        return { priceByName };
+      });
+
+      derived.subscribe(callback);
+      cart.setState(CartState.HasItems({ items: [{ name: "A", price: 20 }] }));
+
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(derived.stateValue.priceByName.get("A")).toBe(20);
+    });
+
     it("should handle set data structure in derivation", () => {
       const cart = createStore(
         CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
@@ -869,6 +913,28 @@ describe("deriveStore()", () => {
       });
 
       expect(derived.stateValue.itemNames.has("A")).toBe(true);
+    });
+
+    it("should notify when derived Set contents change", () => {
+      const cart = createStore(
+        CartState.HasItems({ items: [{ name: "A", price: 10 }] }),
+        CartState
+      );
+      const discount = createStore(DiscountState.None({ rate: 0 }), DiscountState);
+      const callback = vi.fn();
+
+      const derived = deriveStore([cart, discount], ([cartState]) => {
+        if (cartState._tag === "HasItems") {
+          return { itemNames: new Set(cartState.items.map((item) => item.name)) };
+        }
+        return { itemNames: new Set<string>() };
+      });
+
+      derived.subscribe(callback);
+      cart.setState(CartState.HasItems({ items: [{ name: "B", price: 10 }] }));
+
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(derived.stateValue.itemNames.has("B")).toBe(true);
     });
 
     it("should handle nested object derivation", () => {

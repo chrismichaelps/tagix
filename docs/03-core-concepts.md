@@ -17,8 +17,8 @@ Tagix uses tagged unions (discriminated unions) for state representation. Each s
 const UserState = taggedEnum({
   Unauthenticated: {},
   Authenticating: { loading: true },
-  Authenticated: { user: { id: number; name: string } },
-  AuthError: { message: string },
+  Authenticated: { user: { id: 0, name: "" } },
+  AuthError: { message: "" },
 });
 ```
 
@@ -71,8 +71,15 @@ A store is the central state container that:
 ```ts
 const store = createStore(initialState, stateDefinition, {
   name: "MyStore",
-  middleware: [logger],
+  middlewares: [logger],
 });
+```
+
+Call `store.reset()` to restore the exact `initialState` the store was created with — handy for logout / "clear" flows and resetting between tests:
+
+```ts
+store.reset(); // back to initialState, notifies subscribers
+store.reset(false); // reset without notifying
 ```
 
 ## Subscribers
@@ -85,6 +92,17 @@ const unsubscribe = store.subscribe((state) => {
 });
 
 unsubscribe(); // Cleanup
+```
+
+Subscribe to a **derived value** to be notified only when that value changes (deep-equality by default; pass `equals` to customize). The listener receives the new and previous selected values:
+
+```ts
+const stop = store.subscribe(
+  (state) => (state._tag === "Ready" ? state.value : 0),
+  (value, previous) => {
+    // Called immediately (previous = undefined), then only when `value` changes
+  }
+);
 ```
 
 ## Middleware
